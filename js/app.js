@@ -77,7 +77,6 @@ async function initApp() {
 
     initSearch(() => currentYear);
     setupToolbar();
-    setupSidebarToggle();
     setupMobileMenu();
 
     window.addEventListener('hashchange', handleRoute);
@@ -159,15 +158,6 @@ function openAddYearModal(onSave) {
     document.getElementById('year-modal-close').onclick = close;
     document.getElementById('year-cancel-btn').onclick = close;
     overlay.onclick = (e) => { if (e.target === overlay) close(); };
-}
-
-function setupSidebarToggle() {
-    const toggleBtn = document.getElementById('sidebar-toggle-btn');
-    const appLayout = document.getElementById('app-layout');
-
-    toggleBtn?.addEventListener('click', () => {
-        appLayout.classList.toggle('sidebar-collapsed');
-    });
 }
 
 function setupToolbar() {
