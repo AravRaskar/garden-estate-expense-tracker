@@ -186,17 +186,22 @@ async function handleExcelFile(file, year) {
             // Use SheetJS
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const firstSheetName = workbook.SheetNames[0];
+            const firstSheet = workbook.Sheets[firstSheetName];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
 
-            // Convert to our row format (lowercase keys)
+            // Convert to flexible row format
             rows = jsonData.map(row => {
                 const normalized = {};
-                Object.keys(row).forEach(key => {
-                    const mappedKey = matchColumnHeader(key);
+                Object.keys(row).forEach(originalKey => {
+                    const cleanKey = originalKey.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+                    const mappedKey = matchColumnHeader(originalKey);
+
+                    // Set both the mapped standard key AND the cleaned original key as fallback
                     if (mappedKey) {
-                        normalized[mappedKey] = String(row[key]).trim();
+                        normalized[mappedKey] = String(row[originalKey]).trim();
                     }
+                    normalized[cleanKey] = String(row[originalKey]).trim();
                 });
                 return normalized;
             });
@@ -297,9 +302,12 @@ async function processImportRows(rows, year) {
     // Bulk upsert
     const result = await bulkUpsertDonations(records);
 
+    // Dispatch custom event to notify router to refresh active view
+    window.dispatchEvent(new CustomEvent('data-imported', { detail: { count: result.length, year } }));
+
     return {
         success: true,
-        message: `Successfully imported ${result.length} records. ${skipped > 0 ? `${skipped} rows skipped.` : ''}`,
+        message: `Successfully imported ${result.length} records into year ${year}! ${skipped > 0 ? `${skipped} rows skipped.` : ''}`,
         details: errors.length > 0 ? errors.slice(0, 5) : null
     };
 }

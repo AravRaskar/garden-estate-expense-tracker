@@ -224,27 +224,33 @@ export function getTransactionClass(type) {
  * Match a sheet column header to our expected fields
  */
 export function matchColumnHeader(header) {
-    const h = header.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!header) return null;
+    const h = header.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
     const mappings = {
         'building': 'building',
+        'buildings': 'building',
         'buildingname': 'building',
         'flat': 'flat',
+        'flats': 'flat',
         'flatno': 'flat',
         'flatnumber': 'flat',
         'flatnum': 'flat',
         'owner': 'owner_name',
         'ownername': 'owner_name',
         'name': 'owner_name',
+        'ownernameofflat': 'owner_name',
         'donated': 'donated',
         'donationgiven': 'donated',
         'donation': 'donated',
         'status': 'donated',
         'amount': 'amount',
         'amountgiven': 'amount',
+        'amountrs': 'amount',
         'transactiontype': 'transaction_type',
         'transaction': 'transaction_type',
         'type': 'transaction_type',
         'paymentmode': 'transaction_type',
+        'paymenttype': 'transaction_type',
         'mode': 'transaction_type',
         'date': 'date_given',
         'dategiven': 'date_given',

@@ -127,7 +127,11 @@ export async function bulkUpsertDonations(records) {
             .upsert(batch, { onConflict: 'flat_id,year' })
             .select();
         if (error) throw error;
-        if (data) results.push(...data);
+        if (data && data.length > 0) {
+            results.push(...data);
+        } else {
+            results.push(...batch);
+        }
     }
 
     return results;
