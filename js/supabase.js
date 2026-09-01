@@ -274,12 +274,10 @@ export async function exportAllData(year) {
         .from('donations')
         .select(`
             owner_name, donated, amount, transaction_type, date_given,
-            buildings ( name ),
-            flats ( flat_number )
+            buildings ( name, display_order ),
+            flats ( flat_number, display_order )
         `)
-        .eq('year', year)
-        .order('buildings(display_order)')
-        .order('flats(display_order)');
+        .eq('year', year);
     if (error) throw error;
     return data;
 }
