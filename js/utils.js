@@ -195,18 +195,7 @@ export function escapeHtml(str) {
  * Get a building icon/emoji based on building name
  */
 export function getBuildingIcon(name) {
-    const icons = {
-        'Mayflower': '🌼',
-        'Pink Rose': '🌸',
-        'White Rose': '🤍',
-        'Red Rose': '🌹',
-        'Lotus': '🪷',
-        'Blossom': '🌺',
-        'Orchid': '🌷',
-        'Sunflower': '🌻',
-        'Tulip': '🌿'
-    };
-    return icons[name] || '🏢';
+    return '🏢';
 }
 
 /**
