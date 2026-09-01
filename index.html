@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garden Estate — Expense & Collection Tracker</title>
+    <meta name="description" content="Track donations, individual contributions, expenses, and daily event timetables for Garden Estate buildings.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏘️</text></svg>">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-card">
+            <div class="login-logo">
+                <div class="logo-icon">🏘️</div>
+                <h1>Garden Estate</h1>
+                <p>Expense Tracker — Admin Login</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div id="login-error" class="login-error"></div>
+                <div class="form-group">
+                    <label for="login-email">Email</label>
+                    <input type="email" id="login-email" placeholder="admin@garden-estate.com" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password">
+                </div>
+                <button type="submit" id="login-btn" class="btn-login">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP LAYOUT -->
+    <div id="app-layout" class="app-layout hidden">
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">🏘️</div>
+                <div class="logo-text">
+                    Garden Estate
+                    <span>Expense Tracker</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section-label">Main</div>
+                <a class="nav-item active" href="#dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+
+                <!-- Collapsible Buildings -->
+                <div class="nav-item nav-item-dropdown" id="sidebar-buildings-toggle">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="nav-icon">🏢</span>
+                        <span class="nav-text">Buildings</span>
+                    </div>
+                    <span class="dropdown-arrow">▼</span>
+                </div>
+                <div id="sidebar-buildings-list" class="nav-buildings-list">
+                    <div class="text-sm text-muted" style="padding: 0.5rem 0.75rem;">Loading...</div>
+                </div>
+
+                <div class="nav-section-label">Modules</div>
+                <a class="nav-item" href="#individuals">
+                    <span class="nav-icon">👤</span>
+                    <span class="nav-text">Individuals</span>
+                </a>
+                <a class="nav-item" href="#expenses">
+                    <span class="nav-icon">💸</span>
+                    <span class="nav-text">Expenses</span>
+                </a>
+                <a class="nav-item" href="#timetable">
+                    <span class="nav-icon">📅</span>
+                    <span class="nav-text">Daily Timetable</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="nav-item" id="btn-logout">
+                    <span class="nav-icon">🚪</span>
+                    <span class="nav-text">Sign Out</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Top Bar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" title="Toggle Sidebar">☰</button>
+                <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle menu">☰</button>
+                <div class="year-selector">
+                    <label for="year-select">Year</label>
+                    <select id="year-select">
+                        <option value="2026" selected>2026</option>
+                    </select>
+                    <button class="add-year-btn" id="add-year-btn" title="Add a new year">+ Year</button>
+                </div>
+            </div>
+
+            <div class="topbar-center">
+                <div class="search-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="global-search" class="search-input" placeholder="Search owners, buildings...">
+                    <div id="search-results" class="search-results"></div>
+                </div>
+            </div>
+
+            <div class="topbar-right">
+                <button class="btn btn-secondary btn-sm" id="btn-import">📥 Import</button>
+                <button class="btn btn-secondary btn-sm" id="btn-export">📤 Export</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main-content" class="main-content">
+            <div class="loading-spinner"><div class="spinner-ring"></div></div>
+        </main>
+    </div>
+
+    <!-- EDIT FLAT MODAL -->
+    <div id="edit-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="edit-modal-title">Edit Flat</h2>
+                <button class="modal-close" id="edit-modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-owner-name">Owner Name</label>
+                    <input type="text" id="edit-owner-name" placeholder="Enter owner's name">
+                </div>
+                <div class="form-group">
+                    <label>Donation Given</label>
+                    <div class="radio-group">
+                        <label class="radio-label"><input type="radio" name="edit-donated" id="edit-donated-yes" value="yes"> Yes</label>
+                        <label class="radio-label"><input type="radio" name="edit-donated" id="edit-donated-no" value="no" checked> No</label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-amount">Amount (₹)</label>
+                    <input type="number" id="edit-amount" placeholder="0" min="0" disabled>
+                </div>
+                <div class="form-group">
+                    <label for="edit-transaction-type">Type of Transaction</label>
+                    <select id="edit-transaction-type" disabled>
+                        <option value="">Select type</option>
+                        <option value="Cash">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-date-given">Date</label>
+                    <input type="date" id="edit-date-given" disabled>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="edit-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="edit-save-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- INDIVIDUAL MODAL -->
+    <div id="individual-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="ind-modal-title">Add Individual Donor</h2>
+                <button class="modal-close" id="ind-modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="ind-name">Donor Name</label>
+                    <input type="text" id="ind-name" placeholder="e.g. Ramesh Shah">
+                </div>
+                <div class="form-group">
+                    <label for="ind-amount">Amount (₹)</label>
+                    <input type="number" id="ind-amount" placeholder="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="ind-transaction-type">Payment Type</label>
+                    <select id="ind-transaction-type">
+                        <option value="Cash">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ind-date-given">Date Given</label>
+                    <input type="date" id="ind-date-given">
+                </div>
+                <div class="form-group">
+                    <label for="ind-notes">Notes / Purpose</label>
+                    <input type="text" id="ind-notes" placeholder="Optional notes">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="ind-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="ind-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXPENSE MODAL -->
+    <div id="expense-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="exp-modal-title">Log New Expense</h2>
+                <button class="modal-close" id="exp-modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="exp-given-to">Money Given To (Recipient)</label>
+                    <input type="text" id="exp-given-to" placeholder="e.g. Electrician / Vendor Name">
+                </div>
+                <div class="form-group">
+                    <label for="exp-spent-on">Spent On (Purpose / Category)</label>
+                    <input type="text" id="exp-spent-on" placeholder="e.g. Lighting, Sound System, Catering">
+                </div>
+                <div class="form-group">
+                    <label for="exp-amount">Amount Spent (₹)</label>
+                    <input type="number" id="exp-amount" placeholder="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="exp-transaction-type">Payment Mode</label>
+                    <select id="exp-transaction-type">
+                        <option value="Cash">Cash</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="exp-date-spent">Date Spent</label>
+                    <input type="date" id="exp-date-spent">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="exp-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="exp-save-btn">Save Expense</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIMETABLE MODAL -->
+    <div id="timetable-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Upload Daily Timetable</h2>
+                <button class="modal-close" id="tt-modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="tt-title">Event Title</label>
+                    <input type="text" id="tt-title" placeholder="e.g. Day 1 Event Schedule">
+                </div>
+                <div class="form-group">
+                    <label for="tt-date">Event Date</label>
+                    <input type="date" id="tt-date">
+                </div>
+                <div class="form-group">
+                    <label for="tt-file-input">Select Image (PNG/JPEG)</label>
+                    <input type="file" id="tt-file-input" accept="image/png, image/jpeg">
+                </div>
+                <div id="tt-preview" style="display: none; margin-top: 1rem; text-align: center;">
+                    <img id="tt-preview-img" style="max-width: 100%; max-height: 200px; border-radius: var(--radius-md); border: 1px solid var(--slate-200);">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="tt-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="tt-save-btn">Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMPORT MODAL -->
+    <div id="import-modal-overlay" class="modal-overlay">
+        <div class="modal" style="max-width: 580px;">
+            <div class="modal-header">
+                <h2>📥 Import Data</h2>
+                <button class="modal-close" id="import-modal-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="import-tabs">
+                    <button class="import-tab active" data-tab="import-tab-sheets">Google Sheets</button>
+                    <button class="import-tab" data-tab="import-tab-excel">Excel File</button>
+                </div>
+                <div id="import-tab-sheets" class="import-tab-content active">
+                    <div class="form-group">
+                        <label for="import-sheets-url">Google Sheet URL</label>
+                        <input type="url" id="import-sheets-url" placeholder="https://docs.google.com/spreadsheets/d/...">
+                    </div>
+                    <button class="btn btn-primary" id="import-sheets-btn" style="width: 100%;">Import from Sheets</button>
+                </div>
+                <div id="import-tab-excel" class="import-tab-content">
+                    <div id="import-file-dropzone" class="file-dropzone">
+                        <div class="dropzone-icon">📂</div>
+                        <div class="dropzone-text">Click to upload or drag & drop</div>
+                    </div>
+                    <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                </div>
+                <div id="import-result" class="import-result"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container"></div>
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script type="module" src="js/app.js"></script>
+
+</body>
+</html>
