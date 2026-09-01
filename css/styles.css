@@ -194,6 +194,56 @@ h3 { font-size: 1.125rem; font-weight: 600; color: var(--slate-800); }
     background-repeat: no-repeat; background-position: right 0.6rem center;
 }
 
+/* + Year Button Palette */
+.add-year-btn {
+    padding: 0.4rem 0.75rem;
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    box-shadow: 0 1px 3px rgba(13, 148, 136, 0.3);
+}
+.add-year-btn:hover {
+    background: linear-gradient(135deg, var(--primary-700), var(--primary-800));
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Import Modal Tab Palette */
+.import-tabs {
+    display: flex;
+    gap: 0.5rem;
+    border-bottom: 2px solid var(--slate-100);
+    padding-bottom: 0.5rem;
+}
+.import-tab {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--slate-200);
+    background: var(--slate-50);
+    color: var(--slate-600);
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.import-tab:hover {
+    background: var(--primary-50);
+    color: var(--primary-700);
+    border-color: var(--primary-200);
+}
+.import-tab.active {
+    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
+    color: white;
+    border-color: var(--primary-700);
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+}
+
 .topbar-center { flex: 1; max-width: 480px; position: relative; }
 .search-wrapper { position: relative; }
 .search-wrapper .search-icon { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); color: var(--slate-400); }
@@ -256,8 +306,13 @@ h3 { font-size: 1.125rem; font-weight: 600; color: var(--slate-800); }
 .dropdown-arrow { font-size: 0.75rem; transition: transform var(--transition-normal); }
 .nav-item-dropdown.open .dropdown-arrow { transform: rotate(180deg); }
 
-.nav-buildings-list { padding-left: 1.5rem; max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
-.nav-buildings-list.open { max-height: 500px; }
+.nav-buildings-list {
+    padding-left: 1.5rem;
+    display: none;
+}
+.nav-buildings-list.open {
+    display: block !important;
+}
 .nav-buildings-list .nav-item { font-size: 0.8125rem; padding: 0.4375rem 0.75rem; color: var(--slate-500); gap: 0.5rem; }
 .nav-buildings-list .nav-item .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--slate-300); flex-shrink: 0; }
 .nav-buildings-list .nav-item.active .nav-dot { background: var(--primary-500); }

@@ -5,7 +5,7 @@
 import { fetchBuildings, fetchFlats, fetchDonations, upsertDonation, deleteDonation } from './supabase.js';
 import {
     formatCurrency, formatDate, getBuildingIcon, getProgressColor,
-    escapeHtml, normalizeOwnerName, showToast
+    escapeHtml, normalizeOwnerName, showToast, showConfirmModal
 } from './utils.js';
 
 let buildingsCache = null;
@@ -28,11 +28,12 @@ export async function renderBuildingsOverview(container, year) {
         const allDonations = await fetchAllDonations(year);
 
         const buildingStats = buildings.map(b => {
+            const totalFlatsCount = b.name === 'Tulip' ? 8 : 16;
             const bDonations = allDonations.filter(d => d.building_id === b.id);
             const donated = bDonations.filter(d => d.donated).length;
             const amount = bDonations.reduce((sum, d) => sum + (d.donated ? parseFloat(d.amount) || 0 : 0), 0);
-            const percent = Math.round((donated / 16) * 100);
-            return { ...b, donated, amount, percent };
+            const percent = Math.round((donated / totalFlatsCount) * 100);
+            return { ...b, donated, amount, percent, totalFlatsCount };
         });
 
         container.innerHTML = `
@@ -47,7 +48,7 @@ export async function renderBuildingsOverview(container, year) {
                                 <div class="building-icon">${getBuildingIcon(b.name)}</div>
                                 <div>
                                     <div class="building-name">${escapeHtml(b.name)}</div>
-                                    <div class="building-flats-count">16 Flats</div>
+                                    <div class="building-flats-count">${b.totalFlatsCount} Flats</div>
                                 </div>
                             </div>
                             <div class="building-stats">
@@ -56,7 +57,7 @@ export async function renderBuildingsOverview(container, year) {
                                     <div class="stat-label">Collected</div>
                                 </div>
                                 <div class="stat">
-                                    <div class="stat-value">${b.donated}/16</div>
+                                    <div class="stat-value">${b.donated}/${b.totalFlatsCount}</div>
                                     <div class="stat-label">Donated</div>
                                 </div>
                                 <div class="stat">
@@ -122,9 +123,10 @@ export async function renderBuildingDetail(container, buildingName, year) {
             return { flat, donation: donation || null };
         });
 
+        const totalFlatsCount = flats.length;
         const donated = flatData.filter(f => f.donation?.donated).length;
         const totalAmount = flatData.reduce((sum, f) => sum + (f.donation?.donated ? parseFloat(f.donation.amount) || 0 : 0), 0);
-        const percent = Math.round((donated / 16) * 100);
+        const percent = totalFlatsCount > 0 ? Math.round((donated / totalFlatsCount) * 100) : 0;
 
         container.innerHTML = `
             <div class="page-enter">
@@ -139,11 +141,11 @@ export async function renderBuildingDetail(container, buildingName, year) {
                         <div class="summary-label">Total Collected</div>
                     </div>
                     <div class="summary-card">
-                        <div class="summary-value">${donated}/16</div>
+                        <div class="summary-value">${donated}/${totalFlatsCount}</div>
                         <div class="summary-label">Donations Received</div>
                     </div>
                     <div class="summary-card">
-                        <div class="summary-value">${16 - donated}</div>
+                        <div class="summary-value">${totalFlatsCount - donated}</div>
                         <div class="summary-label">Pending</div>
                     </div>
                     <div class="summary-card">
@@ -223,10 +225,14 @@ export async function renderBuildingDetail(container, buildingName, year) {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const flatId = btn.dataset.flatId;
-                if (confirm('Are you sure you want to reset/clear donation record for this flat?')) {
+                const confirmed = await showConfirmModal(
+                    'Are you sure you want to reset/clear the donation record for this flat?',
+                    'Reset Flat Record'
+                );
+                if (confirmed) {
                     try {
                         await deleteDonation(flatId, year);
-                        showToast('Flat record cleared');
+                        showToast('Flat record cleared successfully');
                         renderBuildingDetail(container, buildingName, year);
                     } catch (err) {
                         showToast('Error resetting flat: ' + err.message, 'error');

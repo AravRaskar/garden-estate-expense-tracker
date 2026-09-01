@@ -3,7 +3,7 @@
 // ============================================
 
 import { fetchTimetables, saveTimetable, deleteTimetable } from './supabase.js';
-import { formatDate, escapeHtml, showToast } from './utils.js';
+import { formatDate, escapeHtml, showToast, showConfirmModal } from './utils.js';
 
 export async function renderTimetable(container, year) {
     container.innerHTML = `
@@ -47,7 +47,7 @@ export async function renderTimetable(container, year) {
                                     <button class="btn-edit btn-del-tt" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">🗑️</button>
                                 </div>
                                 <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--slate-200); max-height: 400px; background: var(--slate-900); display: flex; align-items: center; justify-content: center;">
-                                    <img src="${item.image_url}" alt="${escapeHtml(item.title)}" style="max-width: 100%; max-height: 400px; object-fit: contain; cursor: pointer;" onclick="window.open('${item.image_url}', '_blank')">
+                                    <img src="${item.image_url}" alt="${escapeHtml(item.title)}" class="tt-image-card" data-url="${item.image_url}" data-title="${escapeHtml(item.title)}" style="max-width: 100%; max-height: 400px; object-fit: contain; cursor: pointer;">
                                 </div>
                                 <div style="margin-top: 0.5rem; text-align: right;">
                                     <small class="text-muted">Click image to view full size</small>
@@ -61,9 +61,16 @@ export async function renderTimetable(container, year) {
 
         document.getElementById('btn-add-timetable').onclick = () => openTimetableModal(year, () => renderTimetable(container, year));
 
+        container.querySelectorAll('.tt-image-card').forEach(img => {
+            img.onclick = () => {
+                showFullImageModal(img.dataset.url, img.dataset.title);
+            };
+        });
+
         container.querySelectorAll('.btn-del-tt').forEach(btn => {
             btn.onclick = async () => {
-                if (confirm('Delete this timetable image?')) {
+                const confirmed = await showConfirmModal('Are you sure you want to delete this timetable image?', 'Delete Timetable');
+                if (confirmed) {
                     try {
                         await deleteTimetable(btn.dataset.id);
                         showToast('Timetable removed');
@@ -145,4 +152,15 @@ function openTimetableModal(year, onSave) {
     const close = () => overlay.classList.remove('active');
     document.getElementById('tt-modal-close').onclick = close;
     document.getElementById('tt-cancel-btn').onclick = close;
+}
+
+function showFullImageModal(url, title) {
+    const overlay = document.getElementById('image-modal-overlay');
+    document.getElementById('img-modal-src').src = url;
+    document.getElementById('img-modal-title').textContent = title || '';
+    overlay.classList.add('active');
+
+    const close = () => overlay.classList.remove('active');
+    document.getElementById('img-modal-close').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
 }

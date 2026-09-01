@@ -124,6 +124,45 @@ export function showToast(message, type = 'success') {
 }
 
 /**
+ * Show a custom UI confirmation modal
+ */
+export function showConfirmModal(message, title = 'Confirm Action') {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('confirm-modal-overlay');
+        if (!overlay) {
+            resolve(window.confirm(message));
+            return;
+        }
+
+        document.getElementById('confirm-modal-title').innerHTML = `
+            <span style="background: var(--error-light); padding: 0.375rem; border-radius: var(--radius-md);">⚠️</span>
+            ${escapeHtml(title)}
+        `;
+        document.getElementById('confirm-modal-message').textContent = message;
+
+        overlay.classList.add('active');
+
+        const okBtn = document.getElementById('confirm-ok-btn');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+        const closeBtn = document.getElementById('confirm-modal-close');
+
+        const cleanup = (result) => {
+            overlay.classList.remove('active');
+            okBtn.onclick = null;
+            cancelBtn.onclick = null;
+            closeBtn.onclick = null;
+            overlay.onclick = null;
+            resolve(result);
+        };
+
+        okBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+        closeBtn.onclick = () => cleanup(false);
+        overlay.onclick = (e) => { if (e.target === overlay) cleanup(false); };
+    });
+}
+
+/**
  * Format a date string for display
  */
 export function formatDate(dateStr) {

@@ -30,9 +30,36 @@ export function openImportModal(year) {
     // Set up Excel import
     setupExcelImport(year);
 
+    // Set up template download button
+    setupTemplateDownload();
+
     // Close handlers
     document.getElementById('import-modal-close').onclick = closeImportModal;
     overlay.onclick = (e) => { if (e.target === overlay) closeImportModal(); };
+}
+
+function setupTemplateDownload() {
+    const btn = document.getElementById('btn-download-template');
+    if (!btn) return;
+
+    btn.onclick = () => {
+        const sampleData = [
+            { 'Building': 'Mayflower', 'Flat': 'Flat 01', 'Owner Name': 'Rajesh Kumar', 'Donated': 'Yes', 'Amount': 5000, 'Transaction Type': 'UPI', 'Date Given': '2026-03-15' },
+            { 'Building': 'Mayflower', 'Flat': 'Flat 02', 'Owner Name': 'Sunita Rao', 'Donated': 'No', 'Amount': 0, 'Transaction Type': '', 'Date Given': '' },
+            { 'Building': 'Pink Rose', 'Flat': 'Flat 01', 'Owner Name': 'Amit Patel', 'Donated': 'Yes', 'Amount': 3000, 'Transaction Type': 'Cash', 'Date Given': '2026-03-16' },
+            { 'Building': 'White Rose', 'Flat': 'Flat 05', 'Owner Name': 'Vikram Singh', 'Donated': 'Yes', 'Amount': 4500, 'Transaction Type': 'Bank Transfer', 'Date Given': '2026-03-18' }
+        ];
+
+        const ws = XLSX.utils.json_to_sheet(sampleData);
+        ws['!cols'] = [
+            { wch: 14 }, { wch: 10 }, { wch: 20 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 14 }
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Sample Template');
+        XLSX.writeFile(wb, 'Garden_Estate_Import_Template.xlsx');
+        showToast('Sample template downloaded!');
+    };
 }
 
 function closeImportModal() {
@@ -330,10 +357,18 @@ function hideImportResult() {
     }
 }
 
+let isExporting = false;
+
 /**
  * Export all data for a year as Excel file
  */
 export async function handleExport(year) {
+    if (isExporting) return;
+    isExporting = true;
+
+    const btn = document.getElementById('btn-export');
+    if (btn) btn.disabled = true;
+
     try {
         showToast('Preparing export...', 'info');
 
@@ -386,5 +421,8 @@ export async function handleExport(year) {
     } catch (err) {
         console.error('Export error:', err);
         showToast('Export failed: ' + err.message, 'error');
+    } finally {
+        isExporting = false;
+        if (btn) btn.disabled = false;
     }
 }

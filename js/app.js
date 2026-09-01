@@ -74,7 +74,6 @@ async function showApp() {
 
 async function initApp() {
     await loadYearSelector();
-    await loadSidebarBuildings();
 
     initSearch(() => currentYear);
     setupToolbar();
@@ -93,6 +92,7 @@ async function initApp() {
 
 async function loadYearSelector() {
     const select = document.getElementById('year-select');
+    const addYearBtn = document.getElementById('add-year-btn');
     const current = getCurrentYear();
 
     try {
@@ -111,79 +111,76 @@ async function loadYearSelector() {
         `;
     }
 
-    select.addEventListener('change', (e) => {
+    select.onchange = (e) => {
         currentYear = parseInt(e.target.value, 10);
         clearBuildingsCache();
         handleRoute();
-    });
+    };
 
-    document.getElementById('add-year-btn').addEventListener('click', () => {
-        const newYear = prompt('Enter a year to add (e.g., 2028):');
-        if (newYear) {
-            const yearNum = parseInt(newYear, 10);
-            if (yearNum >= current && yearNum <= current + 10) {
-                const exists = [...select.options].some(o => parseInt(o.value) === yearNum);
-                if (!exists) {
-                    const option = document.createElement('option');
-                    option.value = yearNum;
-                    option.textContent = yearNum;
-                    select.appendChild(option);
-                }
-                select.value = yearNum;
-                currentYear = yearNum;
-                clearBuildingsCache();
-                handleRoute();
-                showToast(`Year ${yearNum} selected`);
-            } else {
-                showToast('Please enter a valid future year', 'error');
+    addYearBtn.onclick = () => {
+        openAddYearModal((yearNum) => {
+            const options = [...select.options].map(o => parseInt(o.value, 10));
+            if (!options.includes(yearNum)) {
+                options.push(yearNum);
+                options.sort((a, b) => b - a);
+
+                select.innerHTML = options.map(y =>
+                    `<option value="${y}">${y}</option>`
+                ).join('');
             }
-        }
-    });
+            select.value = yearNum;
+            currentYear = yearNum;
+            clearBuildingsCache();
+            handleRoute();
+            showToast(`Year ${yearNum} selected`);
+        });
+    };
 }
 
-async function loadSidebarBuildings() {
-    const list = document.getElementById('sidebar-buildings-list');
+function openAddYearModal(onSave) {
+    const overlay = document.getElementById('year-modal-overlay');
+    const input = document.getElementById('year-input');
+    input.value = currentYear + 1;
 
-    try {
-        const buildings = await fetchBuildings();
-        list.innerHTML = buildings.map(b => `
-            <a class="nav-item" href="#buildings/${encodeURIComponent(b.name)}" data-building="${escapeHtml(b.name)}">
-                <span class="nav-dot"></span>
-                <span class="nav-text">${escapeHtml(b.name)}</span>
-            </a>
-        `).join('');
-    } catch (err) {
-        list.innerHTML = '<div class="text-sm text-muted" style="padding: 0.5rem 0.75rem;">Failed to load</div>';
-    }
+    overlay.classList.add('active');
+
+    const saveBtn = document.getElementById('year-save-btn');
+    saveBtn.onclick = () => {
+        const yearNum = parseInt(input.value, 10);
+        if (!isNaN(yearNum) && yearNum >= 2020 && yearNum <= 2100) {
+            overlay.classList.remove('active');
+            onSave(yearNum);
+        } else {
+            showToast('Please enter a valid year between 2020 and 2100', 'error');
+        }
+    };
+
+    const close = () => overlay.classList.remove('active');
+    document.getElementById('year-modal-close').onclick = close;
+    document.getElementById('year-cancel-btn').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
 }
 
 function setupSidebarToggle() {
     const toggleBtn = document.getElementById('sidebar-toggle-btn');
     const appLayout = document.getElementById('app-layout');
-    const buildingsToggle = document.getElementById('sidebar-buildings-toggle');
-    const buildingsList = document.getElementById('sidebar-buildings-list');
 
     toggleBtn?.addEventListener('click', () => {
         appLayout.classList.toggle('sidebar-collapsed');
     });
-
-    buildingsToggle?.addEventListener('click', () => {
-        buildingsToggle.classList.toggle('open');
-        buildingsList.classList.toggle('open');
-    });
 }
 
 function setupToolbar() {
-    document.getElementById('btn-import').addEventListener('click', () => openImportModal(currentYear));
-    document.getElementById('btn-export').addEventListener('click', () => handleExport(currentYear));
-    document.getElementById('btn-logout').addEventListener('click', async () => {
+    document.getElementById('btn-import').onclick = () => openImportModal(currentYear);
+    document.getElementById('btn-export').onclick = () => handleExport(currentYear);
+    document.getElementById('btn-logout').onclick = async () => {
         try {
             await signOut();
             showToast('Signed out');
         } catch (err) {
             showToast('Failed to sign out', 'error');
         }
-    });
+    };
 }
 
 function setupMobileMenu() {
@@ -233,16 +230,8 @@ function updateSidebarActive(hash) {
 
     if (hash === '#dashboard') {
         document.querySelector('[href="#dashboard"]')?.classList.add('active');
-    } else if (hash === '#buildings') {
-        document.getElementById('sidebar-buildings-toggle')?.classList.add('active');
-    } else if (hash.startsWith('#buildings/')) {
-        const name = decodeURIComponent(hash.replace('#buildings/', ''));
-        document.getElementById('sidebar-buildings-toggle')?.classList.add('active');
-        document.querySelector(`[data-building="${name}"]`)?.classList.add('active');
-
-        // Ensure dropdown is open
-        document.getElementById('sidebar-buildings-toggle')?.classList.add('open');
-        document.getElementById('sidebar-buildings-list')?.classList.add('open');
+    } else if (hash === '#buildings' || hash.startsWith('#buildings/')) {
+        document.querySelector('[href="#buildings"]')?.classList.add('active');
     } else if (hash === '#individuals') {
         document.querySelector('[href="#individuals"]')?.classList.add('active');
     } else if (hash === '#expenses') {

@@ -3,7 +3,7 @@
 // ============================================
 
 import { fetchIndividuals, saveIndividual, deleteIndividual } from './supabase.js';
-import { formatCurrency, formatDate, escapeHtml, showToast } from './utils.js';
+import { formatCurrency, formatDate, escapeHtml, showToast, showConfirmModal } from './utils.js';
 
 export async function renderIndividuals(container, year) {
     container.innerHTML = `
@@ -93,7 +93,8 @@ export async function renderIndividuals(container, year) {
 
         container.querySelectorAll('.btn-del-ind').forEach(btn => {
             btn.onclick = async () => {
-                if (confirm('Are you sure you want to delete this individual record?')) {
+                const confirmed = await showConfirmModal('Are you sure you want to delete this individual record?', 'Delete Record');
+                if (confirmed) {
                     try {
                         await deleteIndividual(btn.dataset.id);
                         showToast('Record deleted');

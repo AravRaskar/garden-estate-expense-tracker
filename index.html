@@ -54,17 +54,11 @@
                     <span class="nav-text">Dashboard</span>
                 </a>
 
-                <!-- Collapsible Buildings -->
-                <div class="nav-item nav-item-dropdown" id="sidebar-buildings-toggle">
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <span class="nav-icon">🏢</span>
-                        <span class="nav-text">Buildings</span>
-                    </div>
-                    <span class="dropdown-arrow">▼</span>
-                </div>
-                <div id="sidebar-buildings-list" class="nav-buildings-list">
-                    <div class="text-sm text-muted" style="padding: 0.5rem 0.75rem;">Loading...</div>
-                </div>
+                <a class="nav-item" href="#buildings">
+                    <span class="nav-icon">🏢</span>
+                    <span class="nav-text">Buildings</span>
+                    <span class="nav-badge">9</span>
+                </a>
 
                 <div class="nav-section-label">Modules</div>
                 <a class="nav-item" href="#individuals">
@@ -284,32 +278,150 @@
         </div>
     </div>
 
+    <!-- FULL IMAGE PREVIEW MODAL -->
+    <div id="image-modal-overlay" class="modal-overlay">
+        <div class="modal" style="max-width: 800px; background: transparent; box-shadow: none;">
+            <div style="position: relative; text-align: center;">
+                <button class="modal-close" id="img-modal-close" style="position: absolute; top: -15px; right: -15px; background: white; z-index: 10;">✕</button>
+                <img id="img-modal-src" style="max-width: 100%; max-height: 85vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); border: 2px solid white; object-fit: contain;">
+                <div id="img-modal-title" style="color: white; margin-top: 0.75rem; font-weight: 600; font-size: 1.1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRMATION MODAL -->
+    <div id="confirm-modal-overlay" class="modal-overlay">
+        <div class="modal" style="max-width: 420px; border-radius: var(--radius-xl);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--slate-100); padding-bottom: 1rem;">
+                <h2 style="display: flex; align-items: center; gap: 0.5rem; color: var(--error);" id="confirm-modal-title">
+                    <span style="background: var(--error-light); padding: 0.375rem; border-radius: var(--radius-md);">⚠️</span>
+                    Confirm Action
+                </h2>
+                <button class="modal-close" id="confirm-modal-close">✕</button>
+            </div>
+            <div class="modal-body" style="padding-top: 1.25rem;">
+                <p id="confirm-modal-message" style="font-size: 0.9375rem; color: var(--slate-700); line-height: 1.5;"></p>
+            </div>
+            <div class="modal-footer" style="background: var(--slate-50); border-top: 1px solid var(--slate-100); border-radius: 0 0 var(--radius-xl) var(--radius-xl);">
+                <button class="btn btn-secondary" id="confirm-cancel-btn">Cancel</button>
+                <button class="btn btn-danger" id="confirm-ok-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD YEAR MODAL -->
+    <div id="year-modal-overlay" class="modal-overlay">
+        <div class="modal" style="max-width: 420px; border-radius: var(--radius-xl);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--slate-100); padding-bottom: 1rem;">
+                <h2 style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary-800);">
+                    <span style="background: var(--primary-50); padding: 0.375rem; border-radius: var(--radius-md);">📅</span>
+                    Add New Year
+                </h2>
+                <button class="modal-close" id="year-modal-close">✕</button>
+            </div>
+            <div class="modal-body" style="padding-top: 1.25rem;">
+                <div class="form-group">
+                    <label for="year-input" style="font-weight: 600; color: var(--slate-700);">Enter Year</label>
+                    <input type="number" id="year-input" placeholder="e.g. 2027" min="2020" max="2100" style="padding: 0.75rem; font-size: 1rem; border-color: var(--slate-300);">
+                    <small class="text-muted" style="display: block; margin-top: 0.375rem;">Create an independent tracking dataset for this year.</small>
+                </div>
+            </div>
+            <div class="modal-footer" style="background: var(--slate-50); border-top: 1px solid var(--slate-100); border-radius: 0 0 var(--radius-xl) var(--radius-xl);">
+                <button class="btn btn-secondary" id="year-cancel-btn">Cancel</button>
+                <button class="btn btn-primary" id="year-save-btn" style="background: linear-gradient(135deg, var(--primary-600), var(--primary-700));">+ Add Year</button>
+            </div>
+        </div>
+    </div>
+
     <!-- IMPORT MODAL -->
     <div id="import-modal-overlay" class="modal-overlay">
-        <div class="modal" style="max-width: 580px;">
-            <div class="modal-header">
-                <h2>📥 Import Data</h2>
+        <div class="modal" style="max-width: 620px; border-radius: var(--radius-xl);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--slate-100); padding-bottom: 1rem;">
+                <h2 style="display: flex; align-items: center; gap: 0.5rem; color: var(--primary-800);">
+                    <span style="background: var(--primary-50); padding: 0.375rem; border-radius: var(--radius-md);">📥</span>
+                    Import Collection Data
+                </h2>
                 <button class="modal-close" id="import-modal-close">✕</button>
             </div>
-            <div class="modal-body">
-                <div class="import-tabs">
-                    <button class="import-tab active" data-tab="import-tab-sheets">Google Sheets</button>
-                    <button class="import-tab" data-tab="import-tab-excel">Excel File</button>
+            <div class="modal-body" style="padding-top: 1.25rem;">
+                <!-- Clean Cohesive Tabs -->
+                <div class="import-tabs" style="border-bottom: 2px solid var(--slate-100); margin-bottom: 1.25rem;">
+                    <button class="import-tab active" data-tab="import-tab-sheets">🔗 Google Sheets</button>
+                    <button class="import-tab" data-tab="import-tab-excel">📁 Excel File Upload</button>
                 </div>
+
+                <!-- Google Sheets Tab -->
                 <div id="import-tab-sheets" class="import-tab-content active">
                     <div class="form-group">
-                        <label for="import-sheets-url">Google Sheet URL</label>
-                        <input type="url" id="import-sheets-url" placeholder="https://docs.google.com/spreadsheets/d/...">
+                        <label for="import-sheets-url" style="font-weight: 600; color: var(--slate-700);">Google Sheet Shareable Link</label>
+                        <input type="url" id="import-sheets-url" placeholder="https://docs.google.com/spreadsheets/d/your-sheet-id/edit..." style="padding: 0.75rem; font-size: 0.875rem;">
+                        <small class="text-muted" style="display: block; margin-top: 0.375rem;">
+                            ⚠️ Ensure access is set to <strong>"Anyone with the link can view"</strong>
+                        </small>
                     </div>
-                    <button class="btn btn-primary" id="import-sheets-btn" style="width: 100%;">Import from Sheets</button>
+                    <button class="btn btn-primary" id="import-sheets-btn" style="width: 100%; justify-content: center; padding: 0.75rem; font-size: 0.9375rem; background: linear-gradient(135deg, var(--primary-600), var(--primary-700)); margin-top: 0.5rem;">
+                        Import from Google Sheets
+                    </button>
                 </div>
+
+                <!-- Excel Tab -->
                 <div id="import-tab-excel" class="import-tab-content">
-                    <div id="import-file-dropzone" class="file-dropzone">
-                        <div class="dropzone-icon">📂</div>
-                        <div class="dropzone-text">Click to upload or drag & drop</div>
+                    <div id="import-file-dropzone" class="file-dropzone" style="border: 2px dashed var(--primary-300); background: var(--primary-50); padding: 2rem;">
+                        <div class="dropzone-icon" style="font-size: 2.25rem; color: var(--primary-600);">📂</div>
+                        <div class="dropzone-text" style="color: var(--primary-900); font-weight: 600;">Click to upload or drag & drop</div>
+                        <div class="dropzone-hint" style="color: var(--primary-700);">Supports .xlsx, .xls, and .csv files</div>
                     </div>
                     <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
                 </div>
+
+                <!-- Expected Format & Downloadable Template Section -->
+                <div style="margin-top: 1.5rem; background: var(--slate-50); border: 1px solid var(--slate-200); border-radius: var(--radius-lg); padding: 1rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                        <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--slate-800); display: flex; align-items: center; gap: 0.375rem;">
+                            📋 Expected Sheet Format & Template
+                        </h4>
+                        <button id="btn-download-template" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; background: white; border-color: var(--primary-300); color: var(--primary-700);">
+                            📥 Download Sample Template (.xlsx)
+                        </button>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; background: white; border: 1px solid var(--slate-200); border-radius: var(--radius-sm);">
+                            <thead style="background: var(--primary-50); color: var(--primary-800);">
+                                <tr>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Building</th>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Flat</th>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Owner Name</th>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Donated</th>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Amount</th>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Transaction Type</th>
+                                    <th style="padding: 0.4rem 0.6rem; text-align: left; border: 1px solid var(--slate-200);">Date Given</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Mayflower</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Flat 01</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Rajesh Kumar</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Yes</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">5000</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">UPI</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">2026-03-15</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Pink Rose</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Flat 02</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">Priya Sharma</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">No</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">0</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">—</td>
+                                    <td style="padding: 0.4rem 0.6rem; border: 1px solid var(--slate-200);">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Import Result Toast/Message Container -->
                 <div id="import-result" class="import-result"></div>
             </div>
         </div>
@@ -321,6 +433,8 @@
     <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js for interactive analytics charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script type="module" src="js/app.js"></script>
 
 </body>

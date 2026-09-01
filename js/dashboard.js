@@ -1,11 +1,17 @@
 // ============================================
-// Dashboard / Analytics Module
+// Dashboard / Analytics Module (Chart.js Interactive)
 // ============================================
 
 import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses } from './supabase.js';
-import { formatCurrency, getBuildingIcon, getProgressColor, getTransactionClass, escapeHtml } from './utils.js';
+import { formatCurrency, getBuildingIcon, getProgressColor, escapeHtml } from './utils.js';
+
+let chartInstances = {};
 
 export async function renderDashboard(container, year) {
+    // Destroy previous chart instances if re-rendering
+    Object.values(chartInstances).forEach(c => c?.destroy());
+    chartInstances = {};
+
     container.innerHTML = `
         <div class="page-enter">
             <div class="page-header">
@@ -29,25 +35,38 @@ export async function renderDashboard(container, year) {
         const totalExpenses = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
         const netBalance = totalCollection - totalExpenses;
 
-        const totalFlats = buildings.length * 16;
-        const totalDonatedFlats = donations.filter(d => d.donated).length;
-        const totalPendingFlats = totalFlats - totalDonatedFlats;
-        const collectionRate = totalFlats > 0 ? Math.round((totalDonatedFlats / totalFlats) * 100) : 0;
-
-        // Per-building breakdown
+        // Per-building breakdown (Tulip has 8 flats, others have 16)
         const buildingStats = buildings.map(b => {
+            const totalFlatsCount = b.name === 'Tulip' ? 8 : 16;
             const bDonations = donations.filter(d => d.building_id === b.id);
             const donated = bDonations.filter(d => d.donated).length;
             const amount = bDonations.reduce((sum, d) => sum + (d.donated ? parseFloat(d.amount) || 0 : 0), 0);
-            const percent = Math.round((donated / 16) * 100);
-            return { ...b, donated, amount, percent };
+            const percent = Math.round((donated / totalFlatsCount) * 100);
+            return { ...b, donated, amount, percent, totalFlatsCount };
         });
 
-        // Expenses breakdown by purpose/spent_on
+        const totalFlats = buildingStats.reduce((sum, b) => sum + b.totalFlatsCount, 0); // 136 total flats
+        const totalDonatedFlats = donations.filter(d => d.donated).length;
+        const collectionRate = totalFlats > 0 ? Math.round((totalDonatedFlats / totalFlats) * 100) : 0;
+
+        // Expenses category map
         const expenseCategoryMap = {};
         expenses.forEach(e => {
-            const category = e.spent_on.trim() || 'General';
+            const category = e.spent_on.trim() || 'General Operations';
             expenseCategoryMap[category] = (expenseCategoryMap[category] || 0) + (parseFloat(e.amount) || 0);
+        });
+
+        // Transaction modes breakdown
+        const txModeMap = {};
+        donations.forEach(d => {
+            if (d.donated && d.transaction_type) {
+                txModeMap[d.transaction_type] = (txModeMap[d.transaction_type] || 0) + (parseFloat(d.amount) || 0);
+            }
+        });
+        individuals.forEach(i => {
+            if (i.transaction_type) {
+                txModeMap[i.transaction_type] = (txModeMap[i.transaction_type] || 0) + (parseFloat(i.amount) || 0);
+            }
         });
 
         container.innerHTML = `
@@ -82,7 +101,7 @@ export async function renderDashboard(container, year) {
                         <div class="kpi-value" style="color: ${netBalance >= 0 ? 'var(--success)' : 'var(--error)'};">
                             ${formatCurrency(netBalance)}
                         </div>
-                        <div class="kpi-sub">${netBalance >= 0 ? 'Positive balance' : 'Deficit'}</div>
+                        <div class="kpi-sub">${netBalance >= 0 ? 'Positive Balance' : 'Deficit'}</div>
                     </div>
                     <div class="kpi-card kpi-flats">
                         <div class="kpi-header">
@@ -94,47 +113,41 @@ export async function renderDashboard(container, year) {
                     </div>
                 </div>
 
-                <!-- Financial Comparison & Expenses Pie Chart Row -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-                    <!-- Collection vs Expenditure Visual -->
-                    <div class="chart-section" style="margin-top: 0;">
-                        <h3>⚖️ Collection vs Expenditure</h3>
-                        <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
-                            <div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.875rem; margin-bottom: 0.25rem;">
-                                    <span>Total Income (Collection)</span>
-                                    <strong>${formatCurrency(totalCollection)}</strong>
-                                </div>
-                                <div class="progress-bar" style="height: 12px;">
-                                    <div class="progress-fill green" style="width: 100%;"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.875rem; margin-bottom: 0.25rem;">
-                                    <span>Total Expenses</span>
-                                    <strong style="color: var(--error);">${formatCurrency(totalExpenses)}</strong>
-                                </div>
-                                <div class="progress-bar" style="height: 12px;">
-                                    <div class="progress-fill red" style="width: ${totalCollection > 0 ? Math.min(100, Math.round((totalExpenses / totalCollection) * 100)) : 0}%;"></div>
-                                </div>
-                            </div>
+                <!-- Interactive Charts Row 1: Collection vs Expenses + Expense Pie Chart -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Collection vs Expenditure Bar Chart -->
+                    <div class="chart-section" style="margin-top: 0; padding: 1.5rem;">
+                        <h3 style="margin-bottom: 1rem;">⚖️ Collection vs Expenditure</h3>
+                        <div style="height: 260px; position: relative;">
+                            <canvas id="chart-income-vs-expense"></canvas>
                         </div>
                     </div>
 
-                    <!-- Expenses Breakdown Pie / Donut Visual -->
-                    <div class="chart-section" style="margin-top: 0;">
-                        <h3>📊 Expenses Breakdown</h3>
-                        ${Object.keys(expenseCategoryMap).length === 0 ? `
-                            <p class="text-muted text-sm" style="padding: 1rem 0;">No expenses recorded to build chart.</p>
-                        ` : renderExpensePieChart(expenseCategoryMap, totalExpenses)}
+                    <!-- Expenses Breakdown Donut Chart -->
+                    <div class="chart-section" style="margin-top: 0; padding: 1.5rem;">
+                        <h3 style="margin-bottom: 1rem;">📊 Expenses Breakdown</h3>
+                        <div style="height: 260px; position: relative;">
+                            <canvas id="chart-expenses-pie"></canvas>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Building Collection Breakdown Bar Chart -->
-                <div class="chart-section" style="margin-bottom: 2rem;">
-                    <h3>🏢 Collection by Building & Individuals</h3>
-                    <div class="bar-chart" style="margin-top: 1rem;">
-                        ${renderBuildingCollectionChart(buildingStats, individualCollection)}
+                <!-- Interactive Charts Row 2: Building Collection Bar + Payment Mode Donut -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Collection by Building Bar Chart -->
+                    <div class="chart-section" style="margin-top: 0; padding: 1.5rem; flex: 2;">
+                        <h3 style="margin-bottom: 1rem;">🏢 Collection by Building & Individuals</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="chart-building-collection"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Payment Mode Breakdown -->
+                    <div class="chart-section" style="margin-top: 0; padding: 1.5rem; flex: 1;">
+                        <h3 style="margin-bottom: 1rem;">💳 Collection by Payment Type</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="chart-payment-types"></canvas>
+                        </div>
                     </div>
                 </div>
 
@@ -147,7 +160,7 @@ export async function renderDashboard(container, year) {
                                 <div class="building-icon">${getBuildingIcon(b.name)}</div>
                                 <div>
                                     <div class="building-name">${escapeHtml(b.name)}</div>
-                                    <div class="building-flats-count">16 Flats</div>
+                                    <div class="building-flats-count">${b.totalFlatsCount} Flats</div>
                                 </div>
                             </div>
                             <div class="building-stats">
@@ -156,7 +169,7 @@ export async function renderDashboard(container, year) {
                                     <div class="stat-label">Collected</div>
                                 </div>
                                 <div class="stat">
-                                    <div class="stat-value">${b.donated}/16</div>
+                                    <div class="stat-value">${b.donated}/${b.totalFlatsCount}</div>
                                     <div class="stat-label">Donated</div>
                                 </div>
                                 <div class="stat">
@@ -173,6 +186,17 @@ export async function renderDashboard(container, year) {
             </div>
         `;
 
+        // Initialize Chart.js charts
+        initCharts({
+            totalCollection,
+            totalExpenses,
+            buildingStats,
+            individualCollection,
+            expenseCategoryMap,
+            txModeMap
+        });
+
+        // Building card click listeners
         container.querySelectorAll('.building-card').forEach(card => {
             card.addEventListener('click', () => {
                 const name = card.dataset.buildingName;
@@ -186,77 +210,180 @@ export async function renderDashboard(container, year) {
     }
 }
 
-function renderBuildingCollectionChart(buildingStats, individualCollection) {
-    const items = [
-        ...buildingStats.map(b => ({ label: b.name, amount: b.amount, isBuilding: true })),
-        { label: 'Individuals', amount: individualCollection, isBuilding: false }
-    ].sort((a, b) => b.amount - a.amount);
+function initCharts({ totalCollection, totalExpenses, buildingStats, individualCollection, expenseCategoryMap, txModeMap }) {
+    if (typeof Chart === 'undefined') return;
 
-    const maxAmount = Math.max(...items.map(i => i.amount), 1);
+    // Chart 1: Collection vs Expenditure (Bar)
+    const ctxIncomeExpense = document.getElementById('chart-income-vs-expense')?.getContext('2d');
+    if (ctxIncomeExpense) {
+        chartInstances.incomeExpense = new Chart(ctxIncomeExpense, {
+            type: 'bar',
+            data: {
+                labels: ['Total Income', 'Total Expenses', 'Net Balance'],
+                datasets: [{
+                    label: 'Amount (₹)',
+                    data: [totalCollection, totalExpenses, Math.max(0, totalCollection - totalExpenses)],
+                    backgroundColor: [
+                        'rgba(13, 148, 136, 0.85)', // Teal
+                        'rgba(239, 68, 68, 0.85)',   // Red
+                        'rgba(34, 197, 94, 0.85)'    // Green
+                    ],
+                    borderColor: ['#0d9488', '#ef4444', '#22c55e'],
+                    borderWidth: 2,
+                    borderRadius: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ₹${ctx.raw.toLocaleString('en-IN')}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (val) => '₹' + (val >= 1000 ? (val/1000) + 'k' : val)
+                        }
+                    }
+                }
+            }
+        });
+    }
 
-    return items.map(item => {
-        const pct = Math.round((item.amount / maxAmount) * 100);
-        return `
-            <div class="bar-row">
-                <div class="bar-label">${escapeHtml(item.label)}</div>
-                <div class="bar-track">
-                    <div class="bar-fill ${item.isBuilding ? 'upi' : 'cash'}" style="width: ${pct}%;">
-                        ${pct > 15 ? formatCurrency(item.amount) : ''}
-                    </div>
-                </div>
-                <div class="bar-value">${formatCurrency(item.amount)}</div>
-            </div>
-        `;
-    }).join('');
-}
+    // Chart 2: Expenses Breakdown (Doughnut Chart)
+    const ctxExpenses = document.getElementById('chart-expenses-pie')?.getContext('2d');
+    if (ctxExpenses) {
+        const expLabels = Object.keys(expenseCategoryMap);
+        const expValues = Object.values(expenseCategoryMap);
+        const vibrantColors = [
+            '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6',
+            '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6'
+        ];
 
-function renderExpensePieChart(categoryMap, totalExpenses) {
-    const colors = ['#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#64748b'];
-    const entries = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
+        chartInstances.expensesPie = new Chart(ctxExpenses, {
+            type: 'doughnut',
+            data: {
+                labels: expLabels.length > 0 ? expLabels : ['No Expenses Yet'],
+                datasets: [{
+                    data: expValues.length > 0 ? expValues : [1],
+                    backgroundColor: expValues.length > 0 ? vibrantColors.slice(0, expLabels.length) : ['#e2e8f0'],
+                    borderWidth: 3,
+                    borderColor: '#ffffff',
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { boxWidth: 14, font: { size: 12 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ${ctx.label}: ₹${ctx.raw.toLocaleString('en-IN')}`
+                        }
+                    }
+                }
+            }
+        });
+    }
 
-    let cumulativePercent = 0;
-    const slices = entries.map(([category, amount], idx) => {
-        const pct = (amount / totalExpenses) * 100;
-        const color = colors[idx % colors.length];
-        const start = cumulativePercent;
-        cumulativePercent += pct;
-        return { category, amount, pct, color, start, end: cumulativePercent };
-    });
+    // Chart 3: Collection by Building & Individuals (Bar Chart)
+    const ctxBuilding = document.getElementById('chart-building-collection')?.getContext('2d');
+    if (ctxBuilding) {
+        const sortedItems = [
+            ...buildingStats.map(b => ({ label: b.name, amount: b.amount })),
+            { label: 'Individuals', amount: individualCollection }
+        ].sort((a, b) => b.amount - a.amount);
 
-    // Create SVG Donut Chart
-    let svgSegments = '';
-    slices.forEach(slice => {
-        const startAngle = (slice.start / 100) * 360;
-        const endAngle = (slice.end / 100) * 360;
+        const bLabels = sortedItems.map(i => i.label);
+        const bValues = sortedItems.map(i => i.amount);
 
-        const x1 = 50 + 40 * Math.cos((Math.PI * (startAngle - 90)) / 180);
-        const y1 = 50 + 40 * Math.sin((Math.PI * (startAngle - 90)) / 180);
-        const x2 = 50 + 40 * Math.cos((Math.PI * (endAngle - 90)) / 180);
-        const y2 = 50 + 40 * Math.sin((Math.PI * (endAngle - 90)) / 180);
+        chartInstances.buildingCollection = new Chart(ctxBuilding, {
+            type: 'bar',
+            data: {
+                labels: bLabels,
+                datasets: [{
+                    label: 'Collection (₹)',
+                    data: bValues,
+                    backgroundColor: bLabels.map(l => l === 'Individuals' ? 'rgba(245, 158, 11, 0.85)' : 'rgba(20, 184, 166, 0.85)'),
+                    borderColor: bLabels.map(l => l === 'Individuals' ? '#f59e0b' : '#0d9488'),
+                    borderWidth: 1.5,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` Collected: ₹${ctx.raw.toLocaleString('en-IN')}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { font: { size: 11 } } },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (val) => '₹' + (val >= 1000 ? (val/1000) + 'k' : val)
+                        }
+                    }
+                }
+            }
+        });
+    }
 
-        const largeArcFlag = slice.pct > 50 ? 1 : 0;
-        const pathData = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+    // Chart 4: Payment Types Breakdown (Doughnut Chart)
+    const ctxPayment = document.getElementById('chart-payment-types')?.getContext('2d');
+    if (ctxPayment) {
+        const payLabels = Object.keys(txModeMap);
+        const payValues = Object.values(txModeMap);
+        const modeColors = {
+            'UPI': '#3b82f6',
+            'Cash': '#22c55e',
+            'Bank Transfer': '#8b5cf6',
+            'Cheque': '#f59e0b',
+            'Other': '#64748b'
+        };
 
-        svgSegments += `<path d="${pathData}" fill="${slice.color}" />`;
-    });
-
-    return `
-        <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
-            <svg viewBox="0 0 100 100" style="width: 140px; height: 140px; border-radius: 50%; transform: rotate(-90deg); flex-shrink: 0;">
-                ${svgSegments}
-                <circle cx="50" cy="50" r="24" fill="white" />
-            </svg>
-            <div style="flex: 1; min-width: 180px;">
-                ${slices.map(s => `
-                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.8125rem; margin-bottom: 0.375rem;">
-                        <span style="display: flex; align-items: center; gap: 0.375rem;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${s.color}; display: inline-block;"></span>
-                            ${escapeHtml(s.category)}
-                        </span>
-                        <strong>${formatCurrency(s.amount)} (${Math.round(s.pct)}%)</strong>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `;
+        chartInstances.paymentTypes = new Chart(ctxPayment, {
+            type: 'doughnut',
+            data: {
+                labels: payLabels.length > 0 ? payLabels : ['No Payments Yet'],
+                datasets: [{
+                    data: payValues.length > 0 ? payValues : [1],
+                    backgroundColor: payLabels.length > 0 ? payLabels.map(l => modeColors[l] || '#06b6d4') : ['#e2e8f0'],
+                    borderWidth: 3,
+                    borderColor: '#ffffff',
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, font: { size: 11 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => ` ${ctx.label}: ₹${ctx.raw.toLocaleString('en-IN')}`
+                        }
+                    }
+                }
+            }
+        });
+    }
 }

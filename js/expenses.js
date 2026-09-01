@@ -3,7 +3,7 @@
 // ============================================
 
 import { fetchExpenses, saveExpense, deleteExpense } from './supabase.js';
-import { formatCurrency, formatDate, escapeHtml, showToast } from './utils.js';
+import { formatCurrency, formatDate, escapeHtml, showToast, showConfirmModal } from './utils.js';
 
 export async function renderExpenses(container, year) {
     container.innerHTML = `
@@ -92,7 +92,8 @@ export async function renderExpenses(container, year) {
 
         container.querySelectorAll('.btn-del-exp').forEach(btn => {
             btn.onclick = async () => {
-                if (confirm('Are you sure you want to delete this expense entry?')) {
+                const confirmed = await showConfirmModal('Are you sure you want to delete this expense record?', 'Delete Expense');
+                if (confirmed) {
                     try {
                         await deleteExpense(btn.dataset.id);
                         showToast('Expense entry deleted');

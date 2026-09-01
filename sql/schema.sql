@@ -101,14 +101,21 @@ INSERT INTO buildings (name, display_order) VALUES
     ('Tulip', 9)
 ON CONFLICT (name) DO NOTHING;
 
--- Insert 16 flats per building (Flat 01 – Flat 16)
+-- Insert flats: 8 flats for Tulip, 16 flats for all other buildings
 DO $$
 DECLARE
     b RECORD;
+    max_flats INT;
     i INT;
 BEGIN
-    FOR b IN SELECT id FROM buildings ORDER BY display_order LOOP
-        FOR i IN 1..16 LOOP
+    FOR b IN SELECT id, name FROM buildings ORDER BY display_order LOOP
+        IF b.name = 'Tulip' THEN
+            max_flats := 8;
+        ELSE
+            max_flats := 16;
+        END IF;
+
+        FOR i IN 1..max_flats LOOP
             INSERT INTO flats (building_id, flat_number, display_order)
             VALUES (b.id, 'Flat ' || LPAD(i::TEXT, 2, '0'), i)
             ON CONFLICT (building_id, flat_number) DO NOTHING;
