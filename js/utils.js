@@ -150,8 +150,14 @@ export function showConfirmModal(message, title = 'Confirm Action') {
         const cancelBtn = document.getElementById('confirm-cancel-btn');
         const closeBtn = document.getElementById('confirm-modal-close');
 
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') cleanup(false);
+        };
+        document.addEventListener('keydown', handleKeyDown);
+
         const cleanup = (result) => {
             overlay.classList.remove('active');
+            document.removeEventListener('keydown', handleKeyDown);
             okBtn.onclick = null;
             cancelBtn.onclick = null;
             closeBtn.onclick = null;

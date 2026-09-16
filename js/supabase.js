@@ -283,15 +283,16 @@ export async function deleteTimetable(id) {
 // ── Utilities / Search / Export ──────────────
 
 export async function searchDonations(query, year) {
+    const cleanQuery = (query || '').replace(/[%_]/g, '\\$&');
     const { data, error } = await getSupabase()
         .from('donations')
         .select(`
-            *,
+            id, owner_name, amount, donated, transaction_type, flat_id,
             buildings ( id, name ),
             flats ( id, flat_number )
         `)
         .eq('year', year)
-        .ilike('owner_name', `%${query}%`)
+        .ilike('owner_name', `%${cleanQuery}%`)
         .order('owner_name')
         .limit(20);
     if (error) throw error;

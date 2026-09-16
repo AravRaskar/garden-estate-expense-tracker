@@ -114,7 +114,7 @@ export async function renderPublicPortal(container, year = null) {
                 <!-- Public Header -->
                 <header class="public-header">
                     <div class="public-brand">
-                        <div class="public-logo">${icon('coin', 'ui-icon-brand')}</div>
+                        <div class="public-logo" id="modak-logo-public" title="Click for a Modak blessing!">${icon('modak', 'ui-icon-brand')}</div>
                         <div>
                             <h1>Modak</h1>
                             <p class="text-muted text-sm">Garden Estate • Festival & Society Fund ${publicYear}</p>
@@ -228,7 +228,7 @@ export async function renderPublicPortal(container, year = null) {
                 <section class="public-list-section">
                     <div class="section-heading" style="margin-bottom: 1rem;">
                         <h2>${icon('building')} Verified Contributors List</h2>
-                        <input type="text" id="public-search-filter" class="search-input" placeholder="Quick filter by name or flat number..." style="max-width: 320px; margin-top: 0.5rem;">
+                        <input type="text" id="public-search-filter" class="search-input" placeholder="Quick filter by name or flat number..." aria-label="Quick filter by name or flat number" style="max-width: 320px; margin-top: 0.5rem;">
                     </div>
                     <div class="flats-table-wrapper">
                         <table class="flats-table" id="public-table">

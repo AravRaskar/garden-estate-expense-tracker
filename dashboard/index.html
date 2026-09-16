@@ -6,7 +6,7 @@
     <title>Modak: Expense & Collection Tracker</title>
     <meta name="description" content="Track donations, individual contributions, expenses, and daily event timetables with Modak.">
     <meta name="robots" content="noindex, nofollow">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f5948' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5.5'/><path d='M12 9v6M10 10.5h3.5a1.25 1.25 0 0 1 0 2.5H10'/></svg>">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script>
         // Ensure root-relative asset resolution on sub-routes and deep links
         if (window.location.protocol !== 'file:') {
@@ -30,7 +30,7 @@
         <button type="button" class="btn-theme-toggle login-theme-toggle" id="btn-theme-toggle-login" title="Toggle theme" aria-label="Toggle theme"></button>
         <div class="login-card">
             <div class="login-logo">
-                <div class="logo-icon"><span class="ui-icon ui-icon-brand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><path d="M12 9v6M10 10.5h3.5a1.25 1.25 0 0 1 0 2.5H10"/></svg></span></div>
+                <div class="logo-icon" title="Click for a Modak blessing!"><span class="ui-icon ui-icon-brand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 C12 2.5 10.5 5.2 8.8 8 C6.8 11.2 5 14.2 5 17 C5 20 8 21.8 12 21.8 C16 21.8 19 20 19 17 C19 14.2 17.2 11.2 15.2 8 C13.5 5.2 12 2.5 12 2.5 Z"/><path d="M12 3.5 V21.8"/><path d="M12 4.2 C10 8 7.5 12.5 8 21.2"/><path d="M12 4.2 C14 8 16.5 12.5 16 21.2"/><path d="M9.8 7.5 C7.8 11 6 14.8 6.5 19.2"/><path d="M14.2 7.5 C16.2 11 18 14.8 17.5 19.2"/></svg></span></div>
                 <h1>Modak</h1>
                 <p>Expense & Collection Tracker: Admin Login</p>
             </div>
@@ -68,7 +68,7 @@
         <!-- Sidebar -->
         <aside id="sidebar" class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-icon"><span class="ui-icon ui-icon-brand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><path d="M12 9v6M10 10.5h3.5a1.25 1.25 0 0 1 0 2.5H10"/></svg></span></div>
+                <div class="logo-icon" title="Click for a Modak blessing!"><span class="ui-icon ui-icon-brand" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 C12 2.5 10.5 5.2 8.8 8 C6.8 11.2 5 14.2 5 17 C5 20 8 21.8 12 21.8 C16 21.8 19 20 19 17 C19 14.2 17.2 11.2 15.2 8 C13.5 5.2 12 2.5 12 2.5 Z"/><path d="M12 3.5 V21.8"/><path d="M12 4.2 C10 8 7.5 12.5 8 21.2"/><path d="M12 4.2 C14 8 16.5 12.5 16 21.2"/><path d="M9.8 7.5 C7.8 11 6 14.8 6.5 19.2"/><path d="M14.2 7.5 C16.2 11 18 14.8 17.5 19.2"/></svg></span></div>
                 <div class="logo-text">
                     Modak
                     <span>Expense Tracker</span>
@@ -127,7 +127,7 @@
             <div class="topbar-center">
                 <div class="search-wrapper">
                     <span class="search-icon"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg></span></span>
-                    <input type="text" id="global-search" class="search-input" placeholder="Search owners, buildings...">
+                    <input type="text" id="global-search" class="search-input" placeholder="Search owners, buildings..." aria-label="Search owners and buildings">
                     <div id="search-results" class="search-results"></div>
                 </div>
             </div>
@@ -151,7 +151,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h2 id="edit-modal-title">Edit Flat</h2>
-                <button class="modal-close" id="edit-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="edit-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -197,7 +197,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h2 id="ind-modal-title">Add Individual Donor</h2>
-                <button class="modal-close" id="ind-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="ind-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -239,7 +239,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h2 id="exp-modal-title">Log New Expense</h2>
-                <button class="modal-close" id="exp-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="exp-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -281,7 +281,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h2>Upload Daily Timetable</h2>
-                <button class="modal-close" id="tt-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="tt-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -311,7 +311,7 @@
     <div id="image-modal-overlay" class="modal-overlay">
         <div class="modal" style="max-width: 800px; background: transparent; box-shadow: none;">
             <div style="position: relative; text-align: center;">
-                <button class="modal-close" id="img-modal-close" style="position: absolute; top: -15px; right: -15px; background: white; z-index: 10;"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="img-modal-close" aria-label="Close image preview"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
                 <img id="img-modal-src" style="max-width: 100%; max-height: 85vh; border-radius: var(--radius-lg); box-shadow: var(--shadow-xl); border: 2px solid white; object-fit: contain;">
                 <div id="img-modal-title" style="color: white; margin-top: 0.75rem; font-weight: 600; font-size: 1.1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.8);"></div>
             </div>
@@ -326,7 +326,7 @@
                     <span style="background: var(--error-light); padding: 0.375rem; border-radius: var(--radius-md);"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg></span></span>
                     Confirm Action
                 </h2>
-                <button class="modal-close" id="confirm-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="confirm-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body" style="padding-top: 1.25rem;">
                 <p id="confirm-modal-message" style="font-size: 0.9375rem; color: var(--slate-700); line-height: 1.5;"></p>
@@ -346,7 +346,7 @@
                     <span style="background: var(--primary-50); padding: 0.375rem; border-radius: var(--radius-md);"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01"/></svg></span></span>
                     Add New Year
                 </h2>
-                <button class="modal-close" id="year-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="year-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body" style="padding-top: 1.25rem;">
                 <div class="form-group">
@@ -370,7 +370,7 @@
                     <span style="background: var(--primary-50); padding: 0.375rem; border-radius: var(--radius-md);"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></span></span>
                     Import Collection Data
                 </h2>
-                <button class="modal-close" id="import-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="import-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body" style="padding-top: 1.25rem;">
                 <!-- Clean Cohesive Tabs -->
@@ -461,11 +461,11 @@
         <div class="modal qr-modal">
             <div class="modal-header">
                 <h2><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="6" height="6" x="3" y="3" rx="1"/><rect width="6" height="6" x="15" y="3" rx="1"/><rect width="6" height="6" x="3" y="15" rx="1"/><path d="M15 15h2v2h-2zM19 19h2v2h-2zM15 19h2v2h-2zM19 15h2v2h-2z"/></svg></span> Society QR Flyer</h2>
-                <button class="modal-close" id="qr-flyer-modal-close"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
+                <button class="modal-close" id="qr-flyer-modal-close" aria-label="Close modal"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></button>
             </div>
             <div class="modal-body">
                 <div id="qr-flyer-printable" class="qr-flyer-card">
-                    <div class="qr-flyer-badge"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><path d="M12 9v6M10 10.5h3.5a1.25 1.25 0 0 1 0 2.5H10"/></svg></span> Modak Society Tracker</div>
+                    <div class="qr-flyer-badge"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 C12 2.5 10.5 5.2 8.8 8 C6.8 11.2 5 14.2 5 17 C5 20 8 21.8 12 21.8 C16 21.8 19 20 19 17 C19 14.2 17.2 11.2 15.2 8 C13.5 5.2 12 2.5 12 2.5 Z"/><path d="M12 3.5 V21.8"/><path d="M12 4.2 C10 8 7.5 12.5 8 21.2"/><path d="M12 4.2 C14 8 16.5 12.5 16 21.2"/><path d="M9.8 7.5 C7.8 11 6 14.8 6.5 19.2"/><path d="M14.2 7.5 C16.2 11 18 14.8 17.5 19.2"/></svg></span> Modak Society Tracker</div>
                     <h3 class="qr-flyer-title">Scan to View Confirmed Contributions</h3>
                     <p class="qr-flyer-subtitle">Garden Estate • Festival & Society Collection</p>
                     <div class="qr-code-wrapper">

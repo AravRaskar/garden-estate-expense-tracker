@@ -10,10 +10,15 @@ import {
 } from './utils.js';
 import { icon } from './icons.js';
 
+let currentImportYear = null;
+let importTabsInitialized = false;
+let excelImportInitialized = false;
+
 /**
  * Open the import modal
  */
 export function openImportModal(year) {
+    currentImportYear = year;
     const overlay = document.getElementById('import-modal-overlay');
     overlay.classList.add('active');
 
@@ -22,14 +27,14 @@ export function openImportModal(year) {
     document.getElementById('import-file-input').value = '';
     hideImportResult();
 
-    // Set up tabs
+    // Set up tabs (one-time init)
     setupImportTabs();
 
     // Set up Google Sheets import
     setupSheetsImport(year);
 
     // Set up Excel import
-    setupExcelImport(year);
+    setupExcelImport();
 
     // Set up template download button
     setupTemplateDownload();
@@ -68,6 +73,9 @@ function closeImportModal() {
 }
 
 function setupImportTabs() {
+    if (importTabsInitialized) return;
+    importTabsInitialized = true;
+
     const tabs = document.querySelectorAll('.import-tab');
     const contents = document.querySelectorAll('.import-tab-content');
 
@@ -76,7 +84,7 @@ function setupImportTabs() {
             tabs.forEach(t => t.classList.remove('active'));
             contents.forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
-            document.getElementById(tab.dataset.tab).classList.add('active');
+            document.getElementById(tab.dataset.tab)?.classList.add('active');
             hideImportResult();
         });
     });
@@ -133,34 +141,36 @@ function setupSheetsImport(year) {
     });
 }
 
-function setupExcelImport(year) {
+function setupExcelImport() {
     const dropzone = document.getElementById('import-file-dropzone');
     const fileInput = document.getElementById('import-file-input');
+    if (!dropzone || !fileInput) return;
 
-    // Click to upload
-    dropzone.onclick = () => fileInput.click();
+    if (!excelImportInitialized) {
+        excelImportInitialized = true;
+        dropzone.onclick = () => fileInput.click();
 
-    // Drag and drop
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
-    });
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('dragover');
-    });
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        const file = e.dataTransfer.files[0];
-        if (file) handleExcelFile(file, year);
-    });
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleExcelFile(file, currentImportYear);
+        });
+    }
 
-    // File input change
+    // Reset file input to clean listener closures
     const newInput = fileInput.cloneNode(true);
     fileInput.parentNode.replaceChild(newInput, fileInput);
     newInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (file) handleExcelFile(file, year);
+        if (file) handleExcelFile(file, currentImportYear);
     });
 }
 
@@ -191,14 +201,21 @@ async function handleExcelFile(file, year) {
             const firstSheet = workbook.Sheets[firstSheetName];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
 
-            // Helper to format values and handle Date objects
+            // Helper to format values and handle Date objects without UTC off-by-one timezone shift
             const formatVal = (val) => {
                 if (val instanceof Date) {
-                    return val.toISOString().split('T')[0];
+                    const y = val.getFullYear();
+                    const m = String(val.getMonth() + 1).padStart(2, '0');
+                    const d = String(val.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${d}`;
                 }
                 if (typeof val === 'number' && val > 30000 && val < 60000) {
                     try {
-                        return new Date((val - 25569) * 86400 * 1000).toISOString().split('T')[0];
+                        const date = new Date((val - 25569) * 86400 * 1000);
+                        const y = date.getUTCFullYear();
+                        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+                        const d = String(date.getUTCDate()).padStart(2, '0');
+                        return `${y}-${m}-${d}`;
                     } catch (e) {}
                 }
                 return String(val ?? '').trim();
@@ -365,10 +382,6 @@ function showImportResult(result) {
 
     if (result.success) {
         showToast(result.message);
-        // Trigger a refresh of the current view
-        setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('data-imported'));
-        }, 500);
     }
 }
 

@@ -2,7 +2,7 @@
 // App Controller: Routing, Init, State
 // ============================================
 
-import { getSession, signIn, signOut, onAuthStateChange, getDistinctYears, fetchBuildings } from './supabase.js';
+import { signIn, signOut, onAuthStateChange, getDistinctYears } from './supabase.js';
 import { renderDashboard, destroyCharts } from './dashboard.js';
 import { renderBuildingsOverview, renderBuildingDetail, clearBuildingsCache } from './buildings.js';
 import { renderIndividuals } from './individuals.js';
@@ -13,6 +13,7 @@ import { initSearch } from './search.js';
 import { renderPublicPortal } from './public-portal.js';
 import { getCurrentYear, showToast, escapeHtml } from './utils.js';
 import { icon } from './icons.js';
+import { initEasterEggs } from './easter-eggs.js';
 
 let currentYear = getCurrentYear();
 let isAuthenticated = false;
@@ -156,7 +157,7 @@ function initAuth() {
     // Intercept internal link clicks for smooth SPA transitions
     document.addEventListener('click', (e) => {
         const link = e.target.closest('a[href^="/"]');
-        if (link && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        if (link && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0 && link.target !== '_blank' && !link.hasAttribute('download')) {
             e.preventDefault();
             navigateTo(link.getAttribute('href'));
             return;
@@ -173,8 +174,13 @@ function initAuth() {
         if (session) {
             isAuthenticated = true;
             if (!appInitialized) {
-                await initApp();
-                appInitialized = true;
+                try {
+                    await initApp();
+                    appInitialized = true;
+                } catch (err) {
+                    console.error('Failed to initialize app:', err);
+                    showToast('Failed to load initial data. Please refresh.', 'error');
+                }
             }
             const current = getCurrentRoute();
             if (current === '/' || current === '/login' || current === '') {
@@ -190,6 +196,7 @@ function initAuth() {
 
     setupLoginForm();
     setupQRFlyerModal();
+    initEasterEggs();
 }
 
 function setupLoginForm() {
@@ -251,9 +258,22 @@ function handleRoute() {
         destroyCharts();
         showPublicScreen();
         const container = document.getElementById('public-portal-screen');
-        renderPublicPortal(container, currentYear).then(() => {
-            updateThemeToggleUI(document.documentElement.getAttribute('data-theme') || 'light');
-        });
+        renderPublicPortal(container, currentYear)
+            .then(() => {
+                updateThemeToggleUI(document.documentElement.getAttribute('data-theme') || 'light');
+            })
+            .catch(err => {
+                console.error('Public portal rendering failed:', err);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="empty-state" style="padding: 4rem 2rem; text-align: center;">
+                            <h3 style="color: var(--pine-800); margin-bottom: 0.5rem;">Unable to load portal</h3>
+                            <p style="color: var(--slate-500); margin-bottom: 1.5rem;">There was an issue connecting to the database. Please check your connection and refresh.</p>
+                            <button class="btn btn-secondary" onclick="window.location.reload()">Refresh Page</button>
+                        </div>
+                    `;
+                }
+            });
         return;
     }
 

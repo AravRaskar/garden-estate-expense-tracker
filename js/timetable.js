@@ -37,7 +37,7 @@ export async function renderTimetable(container, year) {
                         <p>Upload PNG or JPEG schedule images for year ${year}.</p>
                     </div>
                 ` : `
-                    <div class="timetable-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; margin-top: 1rem;">
+                    <div class="timetable-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 1.5rem; margin-top: 1rem;">
                         ${items.map(item => `
                             <div class="building-card" style="cursor: default; padding: 1.25rem;">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
@@ -45,7 +45,7 @@ export async function renderTimetable(container, year) {
                                         <h3 style="font-size: 1.1rem; font-weight: 600;">${escapeHtml(item.title)}</h3>
                                         <span class="text-sm text-muted">${icon('calendar', 'ui-icon-sm')} ${formatDate(item.event_date)}</span>
                                     </div>
-                                    <button class="btn-edit btn-del-tt" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">${icon('trash')}</button>
+                                    <button class="btn-edit btn-del-tt" data-id="${item.id}" aria-label="Delete schedule" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">${icon('trash')}</button>
                                 </div>
                                 <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--slate-200); max-height: 400px; background: var(--slate-900); display: flex; align-items: center; justify-content: center;">
                                     <img src="${item.image_url}" alt="${escapeHtml(item.title)}" class="tt-image-card" data-url="${item.image_url}" data-title="${escapeHtml(item.title)}" style="max-width: 100%; max-height: 400px; object-fit: contain; cursor: pointer;">
@@ -108,6 +108,11 @@ function openTimetableModal(year, onSave) {
                 showToast('Please select a PNG or JPEG image', 'error');
                 return;
             }
+            if (file.size > 2 * 1024 * 1024) {
+                showToast('Image size exceeds 2MB limit. Please choose a smaller image.', 'error');
+                fileInput.value = '';
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (event) => {
                 base64Image = event.target.result;
@@ -138,7 +143,7 @@ function openTimetableModal(year, onSave) {
                 year,
                 title,
                 image_url: base64Image,
-                event_date
+                event_date: event_date || null
             });
             showToast('Timetable uploaded!');
             overlay.classList.remove('active');
@@ -153,6 +158,7 @@ function openTimetableModal(year, onSave) {
     const close = () => overlay.classList.remove('active');
     document.getElementById('tt-modal-close').onclick = close;
     document.getElementById('tt-cancel-btn').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
 }
 
 function showFullImageModal(url, title) {

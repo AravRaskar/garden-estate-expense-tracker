@@ -59,7 +59,7 @@ export async function renderDashboard(container, year) {
         // Expenses category map
         const expenseCategoryMap = {};
         expenses.forEach(e => {
-            const category = e.spent_on.trim() || 'General Operations';
+            const category = (e.spent_on || '').trim() || 'General Operations';
             expenseCategoryMap[category] = (expenseCategoryMap[category] || 0) + (parseFloat(e.amount) || 0);
         });
 
@@ -121,7 +121,7 @@ export async function renderDashboard(container, year) {
                 </div>
 
                 <!-- Interactive Charts Row 1: Collection vs Expenses + Expense Pie Chart -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     <!-- Collection vs Expenditure Bar Chart -->
                     <div class="chart-section" style="margin-top: 0; padding: 1.5rem;">
                         <h3 style="margin-bottom: 1rem;">${icon('scale')} Collection vs Expenditure</h3>
@@ -140,7 +140,7 @@ export async function renderDashboard(container, year) {
                 </div>
 
                 <!-- Interactive Charts Row 2: Building Collection Bar + Payment Mode Donut -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     <!-- Collection by Building Bar Chart -->
                     <div class="chart-section" style="margin-top: 0; padding: 1.5rem; flex: 2;">
                         <h3 style="margin-bottom: 1rem;">${icon('building')} Collection by Building & Individuals</h3>
