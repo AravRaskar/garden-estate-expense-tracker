@@ -1,0 +1,16 @@
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor directories
+.vscode/
+.idea/
+
+# Node / Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment
+.env
+.env.local

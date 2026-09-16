@@ -4,12 +4,13 @@
 
 import { fetchIndividuals, saveIndividual, deleteIndividual } from './supabase.js';
 import { formatCurrency, formatDate, escapeHtml, showToast, showConfirmModal } from './utils.js';
+import { icon } from './icons.js';
 
 export async function renderIndividuals(container, year) {
     container.innerHTML = `
         <div class="page-enter">
             <div class="page-header">
-                <h1><span class="header-icon">👤</span> Individuals Collection</h1>
+                <h1><span class="header-icon">${icon('user')}</span> Individuals Collection</h1>
                 <button class="btn btn-primary" id="btn-add-individual">+ Add Individual</button>
             </div>
             <div class="loading-spinner"><div class="spinner-ring"></div></div>
@@ -24,7 +25,7 @@ export async function renderIndividuals(container, year) {
             <div class="page-enter">
                 <div class="page-header">
                     <div>
-                        <h1><span class="header-icon">👤</span> Individuals Collection</h1>
+                        <h1><span class="header-icon">${icon('user')}</span> Individuals Collection</h1>
                         <p class="text-muted text-sm">Donations received from non-building / external individual donors</p>
                     </div>
                     <button class="btn btn-primary" id="btn-add-individual">+ Add Individual Donor</button>
@@ -64,13 +65,13 @@ export async function renderIndividuals(container, year) {
                                 <tr>
                                     <td class="owner-name">${escapeHtml(item.name)}</td>
                                     <td class="amount-cell">${formatCurrency(item.amount)}</td>
-                                    <td class="transaction-type">${escapeHtml(item.transaction_type || '—')}</td>
+                                    <td class="transaction-type">${escapeHtml(item.transaction_type || '-')}</td>
                                     <td>${formatDate(item.date_given)}</td>
-                                    <td class="text-muted text-sm">${escapeHtml(item.notes || '—')}</td>
+                                    <td class="text-muted text-sm">${escapeHtml(item.notes || '-')}</td>
                                     <td>
                                         <div style="display: flex; gap: 0.5rem;">
-                                            <button class="btn-edit btn-edit-ind" data-id="${item.id}">✏️ Edit</button>
-                                            <button class="btn-edit btn-del-ind" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">🗑️</button>
+                                            <button class="btn-edit btn-edit-ind" data-id="${item.id}">${icon('edit')} Edit</button>
+                                            <button class="btn-edit btn-del-ind" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">${icon('trash')}</button>
                                         </div>
                                     </td>
                                 </tr>

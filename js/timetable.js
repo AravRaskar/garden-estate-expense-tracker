@@ -4,12 +4,13 @@
 
 import { fetchTimetables, saveTimetable, deleteTimetable } from './supabase.js';
 import { formatDate, escapeHtml, showToast, showConfirmModal } from './utils.js';
+import { icon } from './icons.js';
 
 export async function renderTimetable(container, year) {
     container.innerHTML = `
         <div class="page-enter">
             <div class="page-header">
-                <h1><span class="header-icon">📅</span> Daily Event Timetable</h1>
+                <h1><span class="header-icon">${icon('calendar')}</span> Daily Event Timetable</h1>
                 <button class="btn btn-primary" id="btn-add-timetable">+ Upload Timetable</button>
             </div>
             <div class="loading-spinner"><div class="spinner-ring"></div></div>
@@ -23,7 +24,7 @@ export async function renderTimetable(container, year) {
             <div class="page-enter">
                 <div class="page-header">
                     <div>
-                        <h1><span class="header-icon">📅</span> Daily Event Timetable</h1>
+                        <h1><span class="header-icon">${icon('calendar')}</span> Daily Event Timetable</h1>
                         <p class="text-muted text-sm">Upload PNG/JPEG schedule images for festival / estate events</p>
                     </div>
                     <button class="btn btn-primary" id="btn-add-timetable">+ Upload Timetable Image</button>
@@ -31,7 +32,7 @@ export async function renderTimetable(container, year) {
 
                 ${items.length === 0 ? `
                     <div class="empty-state">
-                        <div class="empty-icon">🖼️</div>
+                        <div class="empty-icon">${icon('image', 'ui-icon-xl')}</div>
                         <h3>No timetables uploaded yet</h3>
                         <p>Upload PNG or JPEG schedule images for year ${year}.</p>
                     </div>
@@ -42,9 +43,9 @@ export async function renderTimetable(container, year) {
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
                                     <div>
                                         <h3 style="font-size: 1.1rem; font-weight: 600;">${escapeHtml(item.title)}</h3>
-                                        <span class="text-sm text-muted">📅 ${formatDate(item.event_date)}</span>
+                                        <span class="text-sm text-muted">${icon('calendar', 'ui-icon-sm')} ${formatDate(item.event_date)}</span>
                                     </div>
-                                    <button class="btn-edit btn-del-tt" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">🗑️</button>
+                                    <button class="btn-edit btn-del-tt" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">${icon('trash')}</button>
                                 </div>
                                 <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--slate-200); max-height: 400px; background: var(--slate-900); display: flex; align-items: center; justify-content: center;">
                                     <img src="${item.image_url}" alt="${escapeHtml(item.title)}" class="tt-image-card" data-url="${item.image_url}" data-title="${escapeHtml(item.title)}" style="max-width: 100%; max-height: 400px; object-fit: contain; cursor: pointer;">

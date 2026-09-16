@@ -75,7 +75,11 @@ export function initSearch(getYear) {
         if (item) {
             const buildingName = item.dataset.buildingName;
             if (buildingName) {
-                window.location.hash = `#buildings/${encodeURIComponent(buildingName)}`;
+                if (window.navigateTo) {
+                    window.navigateTo(`/buildings/${encodeURIComponent(buildingName)}`);
+                } else {
+                    window.location.pathname = `/buildings/${encodeURIComponent(buildingName)}`;
+                }
             }
             resultsContainer.classList.remove('active');
             searchActive = false;

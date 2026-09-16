@@ -1,36 +1,211 @@
 // ============================================
-// App Controller — Routing, Init, State
+// App Controller: Routing, Init, State
 // ============================================
 
 import { getSession, signIn, signOut, onAuthStateChange, getDistinctYears, fetchBuildings } from './supabase.js';
-import { renderDashboard } from './dashboard.js';
+import { renderDashboard, destroyCharts } from './dashboard.js';
 import { renderBuildingsOverview, renderBuildingDetail, clearBuildingsCache } from './buildings.js';
 import { renderIndividuals } from './individuals.js';
 import { renderExpenses } from './expenses.js';
 import { renderTimetable } from './timetable.js';
 import { openImportModal, handleExport } from './import-export.js';
 import { initSearch } from './search.js';
+import { renderPublicPortal } from './public-portal.js';
 import { getCurrentYear, showToast, escapeHtml } from './utils.js';
+import { icon } from './icons.js';
 
 let currentYear = getCurrentYear();
 let isAuthenticated = false;
+let appInitialized = false;
+
+export function normalizePath(path) {
+    if (!path) return '/';
+    // Remove query params and hash if included
+    let clean = path.split('?')[0].split('#')[0];
+    // Remove index.html suffix
+    clean = clean.replace(/\/index\.html$/i, '');
+    // Remove trailing slash if longer than 1 character
+    if (clean.length > 1 && clean.endsWith('/')) {
+        clean = clean.slice(0, -1);
+    }
+    return clean || '/';
+}
+
+export function navigateTo(path) {
+    if (window.location.protocol === 'file:') {
+        window.location.hash = path.startsWith('/') ? `#${path.slice(1)}` : `#${path}`;
+    } else {
+        const target = normalizePath(path);
+        if (normalizePath(window.location.pathname) !== target) {
+            history.pushState(null, '', target);
+        }
+        handleRoute();
+    }
+}
+window.navigateTo = navigateTo;
+
+export function getCurrentRoute() {
+    // 1. Check for 404 fallback redirect stored in sessionStorage
+    const redirect = sessionStorage.getItem('modak_redirect_route');
+    if (redirect) {
+        sessionStorage.removeItem('modak_redirect_route');
+        const clean = normalizePath(redirect);
+        if (window.location.pathname !== clean) {
+            history.replaceState(null, '', clean);
+        }
+        return clean;
+    }
+
+    // 2. Fallback for hash routing or file:// protocol
+    if (window.location.hash && window.location.hash.length > 1) {
+        return normalizePath('/' + window.location.hash.slice(1).replace(/^\//, ''));
+    }
+
+    // 3. Clean pathname
+    return normalizePath(window.location.pathname);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     initAuth();
 });
 
-function initAuth() {
-    onAuthStateChange(async (event, session) => {
-        if (session) {
-            isAuthenticated = true;
-            showApp();
-        } else {
-            isAuthenticated = false;
-            showLogin();
+export function initTheme() {
+    const saved = localStorage.getItem('modak_theme');
+    const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = saved || (systemDark ? 'dark' : 'light');
+    setTheme(initialTheme, false);
+
+    // Global listener for all theme toggle buttons across pages (topbar, login, public)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('#btn-theme-toggle-topbar, #btn-theme-toggle-login, #btn-theme-toggle-public');
+        if (btn) {
+            e.preventDefault();
+            const current = document.documentElement.getAttribute('data-theme') || 'light';
+            const next = current === 'dark' ? 'light' : 'dark';
+            setTheme(next);
+            showToast(`${next === 'dark' ? 'Dark' : 'Light'} theme activated`);
         }
     });
 
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
+    // Listen to system preference changes if user hasn't explicitly overridden
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('modak_theme')) {
+                setTheme(e.matches ? 'dark' : 'light', false);
+            }
+        });
+    }
+}
+
+export function setTheme(theme, triggerReRender = true) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('modak_theme', theme);
+    updateThemeToggleUI(theme);
+
+    // If on dashboard, re-render charts to update grid and tooltip styling
+    if (triggerReRender && isAuthenticated) {
+        const route = getCurrentRoute();
+        if (route === '/dashboard' || route === '/') {
+            const container = document.getElementById('main-content');
+            if (container && document.getElementById('chart-income-vs-expense')) {
+                renderDashboard(container, currentYear);
+            }
+        }
+    }
+}
+
+function updateThemeToggleUI(theme) {
+    const isDark = theme === 'dark';
+    const iconName = isDark ? 'sun' : 'moon';
+    const label = isDark ? 'Light' : 'Dark';
+
+    document.querySelectorAll('#btn-theme-toggle-topbar, #btn-theme-toggle-public').forEach(btn => {
+        btn.innerHTML = `${icon(iconName)} <span class="hide-mobile" style="margin-left: 0.25rem;">${label}</span>`;
+        btn.title = `Switch to ${isDark ? 'light' : 'dark'} mode`;
+        btn.setAttribute('aria-label', `Switch to ${isDark ? 'light' : 'dark'} mode`);
+    });
+
+    document.querySelectorAll('#btn-theme-toggle-login').forEach(btn => {
+        btn.innerHTML = icon(iconName);
+        btn.title = `Switch to ${isDark ? 'light' : 'dark'} mode`;
+        btn.setAttribute('aria-label', `Switch to ${isDark ? 'light' : 'dark'} mode`);
+    });
+}
+
+function initAuth() {
+    // HTML5 History & Popstate routing
+    window.addEventListener('popstate', handleRoute);
+    window.addEventListener('hashchange', handleRoute); // backward compatibility
+    window.addEventListener('data-imported', () => {
+        if (isAuthenticated) handleAdminRoute();
+    });
+
+    // Global Escape key handler to close modals
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
+                overlay.classList.remove('active');
+            });
+            document.querySelectorAll('.search-results.active').forEach(results => {
+                results.classList.remove('active');
+            });
+        }
+    });
+
+    // Intercept internal link clicks for smooth SPA transitions
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a[href^="/"]');
+        if (link && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+            e.preventDefault();
+            navigateTo(link.getAttribute('href'));
+            return;
+        }
+
+        const navBtn = e.target.closest('[data-navigate]');
+        if (navBtn) {
+            e.preventDefault();
+            navigateTo(navBtn.getAttribute('data-navigate'));
+        }
+    });
+
+    onAuthStateChange(async (event, session) => {
+        if (session) {
+            isAuthenticated = true;
+            if (!appInitialized) {
+                await initApp();
+                appInitialized = true;
+            }
+            const current = getCurrentRoute();
+            if (current === '/' || current === '/login' || current === '') {
+                navigateTo('/dashboard');
+            } else {
+                handleRoute();
+            }
+        } else {
+            isAuthenticated = false;
+            handleRoute();
+        }
+    });
+
+    setupLoginForm();
+    setupQRFlyerModal();
+}
+
+function setupLoginForm() {
+    const form = document.getElementById('login-form');
+    if (!form) return;
+
+    const autofillBtn = document.getElementById('btn-autofill-demo');
+    autofillBtn?.addEventListener('click', () => {
+        const emailEl = document.getElementById('login-email');
+        const passEl = document.getElementById('login-password');
+        if (emailEl) emailEl.value = 'admin@modak.com';
+        if (passEl) passEl.value = 'admin';
+        showToast('Demo credentials filled: admin@modak.com / admin');
+    });
+
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const email = document.getElementById('login-email').value.trim();
@@ -61,32 +236,64 @@ function initAuth() {
     });
 }
 
-function showLogin() {
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.getElementById('app-layout').classList.add('hidden');
+function isPublicRoute(route = getCurrentRoute()) {
+    const r = (route || '').toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    const search = window.location.search.toLowerCase();
+    return r === '/public' || r.endsWith('/public') || hash === '#public' || hash.startsWith('#public') || search.includes('view=public');
 }
 
-async function showApp() {
-    document.getElementById('login-screen').classList.add('hidden');
-    document.getElementById('app-layout').classList.remove('hidden');
-    await initApp();
+function handleRoute() {
+    const route = getCurrentRoute();
+
+    // Route 1: Public Portal (Only accessible via QR code route)
+    if (isPublicRoute(route)) {
+        destroyCharts();
+        showPublicScreen();
+        const container = document.getElementById('public-portal-screen');
+        renderPublicPortal(container, currentYear).then(() => {
+            updateThemeToggleUI(document.documentElement.getAttribute('data-theme') || 'light');
+        });
+        return;
+    }
+
+    // Route 2: Regular links (Defaults to Admin Login when unauthenticated)
+    if (!isAuthenticated) {
+        destroyCharts();
+        showLoginScreen();
+        updateThemeToggleUI(document.documentElement.getAttribute('data-theme') || 'light');
+        return;
+    }
+
+    // Authenticated admin view
+    showAdminLayout();
+    updateThemeToggleUI(document.documentElement.getAttribute('data-theme') || 'light');
+    handleAdminRoute(route);
+}
+
+function showPublicScreen() {
+    document.getElementById('public-portal-screen')?.classList.remove('hidden');
+    document.getElementById('login-screen')?.classList.add('hidden');
+    document.getElementById('app-layout')?.classList.add('hidden');
+}
+
+function showLoginScreen() {
+    document.getElementById('login-screen')?.classList.remove('hidden');
+    document.getElementById('public-portal-screen')?.classList.add('hidden');
+    document.getElementById('app-layout')?.classList.add('hidden');
+}
+
+function showAdminLayout() {
+    document.getElementById('app-layout')?.classList.remove('hidden');
+    document.getElementById('login-screen')?.classList.add('hidden');
+    document.getElementById('public-portal-screen')?.classList.add('hidden');
 }
 
 async function initApp() {
     await loadYearSelector();
-
     initSearch(() => currentYear);
     setupToolbar();
     setupMobileMenu();
-
-    window.addEventListener('hashchange', handleRoute);
-    window.addEventListener('data-imported', () => handleRoute());
-
-    if (!window.location.hash || window.location.hash === '#') {
-        window.location.hash = '#dashboard';
-    } else {
-        handleRoute();
-    }
 }
 
 async function loadYearSelector() {
@@ -167,6 +374,7 @@ function setupToolbar() {
         try {
             await signOut();
             showToast('Signed out');
+            navigateTo('/');
         } catch (err) {
             showToast('Failed to sign out', 'error');
         }
@@ -189,44 +397,111 @@ function setupMobileMenu() {
     });
 }
 
-function handleRoute() {
-    const hash = window.location.hash || '#dashboard';
+function handleAdminRoute(route = getCurrentRoute()) {
     const container = document.getElementById('main-content');
+    const cleanRoute = normalizePath(route);
+    updateSidebarActive(cleanRoute);
 
-    updateSidebarActive(hash);
+    // Destroy Chart.js instances if navigating away from dashboard
+    if (cleanRoute !== '/dashboard' && cleanRoute !== '/') {
+        destroyCharts();
+    }
 
-    if (hash === '#dashboard') {
+    if (cleanRoute === '/dashboard' || cleanRoute === '/') {
         renderDashboard(container, currentYear);
-    } else if (hash === '#buildings') {
+    } else if (cleanRoute === '/buildings') {
         renderBuildingsOverview(container, currentYear);
-    } else if (hash.startsWith('#buildings/')) {
-        const buildingName = decodeURIComponent(hash.replace('#buildings/', ''));
+    } else if (cleanRoute.startsWith('/buildings/')) {
+        const buildingName = decodeURIComponent(cleanRoute.replace('/buildings/', ''));
         renderBuildingDetail(container, buildingName, currentYear);
-    } else if (hash === '#individuals') {
+    } else if (cleanRoute === '/individuals') {
         renderIndividuals(container, currentYear);
-    } else if (hash === '#expenses') {
+    } else if (cleanRoute === '/expenses') {
         renderExpenses(container, currentYear);
-    } else if (hash === '#timetable') {
+    } else if (cleanRoute === '/timetable') {
         renderTimetable(container, currentYear);
     } else {
         renderDashboard(container, currentYear);
     }
 }
 
-function updateSidebarActive(hash) {
+function updateSidebarActive(route = getCurrentRoute()) {
+    const cleanRoute = normalizePath(route);
     document.querySelectorAll('.sidebar-nav .nav-item').forEach(item => {
         item.classList.remove('active');
     });
 
-    if (hash === '#dashboard') {
-        document.querySelector('[href="#dashboard"]')?.classList.add('active');
-    } else if (hash === '#buildings' || hash.startsWith('#buildings/')) {
-        document.querySelector('[href="#buildings"]')?.classList.add('active');
-    } else if (hash === '#individuals') {
-        document.querySelector('[href="#individuals"]')?.classList.add('active');
-    } else if (hash === '#expenses') {
-        document.querySelector('[href="#expenses"]')?.classList.add('active');
-    } else if (hash === '#timetable') {
-        document.querySelector('[href="#timetable"]')?.classList.add('active');
+    if (cleanRoute === '/dashboard' || cleanRoute === '/') {
+        document.querySelector('[href="/dashboard"]')?.classList.add('active');
+    } else if (cleanRoute === '/buildings' || cleanRoute.startsWith('/buildings/')) {
+        document.querySelector('[href="/buildings"]')?.classList.add('active');
+    } else if (cleanRoute === '/individuals') {
+        document.querySelector('[href="/individuals"]')?.classList.add('active');
+    } else if (cleanRoute === '/expenses') {
+        document.querySelector('[href="/expenses"]')?.classList.add('active');
+    } else if (cleanRoute === '/timetable') {
+        document.querySelector('[href="/timetable"]')?.classList.add('active');
     }
 }
+
+function setupQRFlyerModal() {
+    const btn = document.getElementById('btn-qr-flyer');
+    const overlay = document.getElementById('qr-flyer-modal-overlay');
+    const closeBtn = document.getElementById('qr-flyer-modal-close');
+    const imgEl = document.getElementById('qr-flyer-img');
+    const urlDisplay = document.getElementById('qr-flyer-url-display');
+    const copyBtn = document.getElementById('qr-copy-link-btn');
+    const printBtn = document.getElementById('qr-print-btn');
+
+    if (!btn || !overlay) return;
+
+    btn.addEventListener('click', () => {
+        // Construct clean root URL (no /# needed)
+        const origin = window.location.origin;
+        let publicUrl;
+        if (window.location.protocol === 'file:') {
+            publicUrl = `${window.location.href.split('#')[0]}#public`;
+        } else {
+            const pathname = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/public$/, '');
+            const cleanPath = pathname.endsWith('/') ? pathname : `${pathname}/`;
+            publicUrl = `${origin}${cleanPath}public`;
+        }
+
+        // Generate QR Code via high-contrast QR service
+        const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicUrl)}&margin=10`;
+        
+        imgEl.src = qrApiUrl;
+        urlDisplay.textContent = publicUrl;
+        overlay.classList.add('active');
+    });
+
+    const closeModal = () => overlay.classList.remove('active');
+    closeBtn?.addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+
+    copyBtn?.addEventListener('click', async () => {
+        const url = urlDisplay.textContent;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(url);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = url;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+            showToast('Public portal link copied to clipboard!');
+        } catch (err) {
+            showToast('Failed to copy link', 'error');
+        }
+    });
+
+    printBtn?.addEventListener('click', () => {
+        window.print();
+    });
+}
+

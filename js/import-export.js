@@ -8,6 +8,7 @@ import {
 import {
     parseCSV, showToast, matchColumnHeader, normalizeOwnerName, escapeHtml
 } from './utils.js';
+import { icon } from './icons.js';
 
 /**
  * Open the import modal
@@ -57,7 +58,7 @@ function setupTemplateDownload() {
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Sample Template');
-        XLSX.writeFile(wb, 'Garden_Estate_Import_Template.xlsx');
+        XLSX.writeFile(wb, 'Modak_Import_Template.xlsx');
         showToast('Sample template downloaded!');
     };
 }
@@ -172,7 +173,7 @@ async function handleExcelFile(file, year) {
     const dropzone = document.getElementById('import-file-dropzone');
     const originalHTML = dropzone.innerHTML;
     dropzone.innerHTML = `
-        <div class="dropzone-icon">⏳</div>
+        <div class="dropzone-icon" style="font-size: 2.25rem; color: var(--primary-600);">${icon('download', 'ui-icon-xl')}</div>
         <div class="dropzone-text">Processing ${escapeHtml(file.name)}...</div>
     `;
 
@@ -183,12 +184,25 @@ async function handleExcelFile(file, year) {
             const text = await file.text();
             rows = parseCSV(text);
         } else {
-            // Use SheetJS
+            // Use SheetJS with cellDates: true to avoid numeric date serials
             const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
             const firstSheetName = workbook.SheetNames[0];
             const firstSheet = workbook.Sheets[firstSheetName];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+
+            // Helper to format values and handle Date objects
+            const formatVal = (val) => {
+                if (val instanceof Date) {
+                    return val.toISOString().split('T')[0];
+                }
+                if (typeof val === 'number' && val > 30000 && val < 60000) {
+                    try {
+                        return new Date((val - 25569) * 86400 * 1000).toISOString().split('T')[0];
+                    } catch (e) {}
+                }
+                return String(val ?? '').trim();
+            };
 
             // Convert to flexible row format
             rows = jsonData.map(row => {
@@ -196,12 +210,13 @@ async function handleExcelFile(file, year) {
                 Object.keys(row).forEach(originalKey => {
                     const cleanKey = originalKey.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
                     const mappedKey = matchColumnHeader(originalKey);
+                    const formatted = formatVal(row[originalKey]);
 
                     // Set both the mapped standard key AND the cleaned original key as fallback
                     if (mappedKey) {
-                        normalized[mappedKey] = String(row[originalKey]).trim();
+                        normalized[mappedKey] = formatted;
                     }
-                    normalized[cleanKey] = String(row[originalKey]).trim();
+                    normalized[cleanKey] = formatted;
                 });
                 return normalized;
             });
@@ -422,7 +437,7 @@ export async function handleExport(year) {
         XLSX.utils.book_append_sheet(wb, ws, `Donations ${year}`);
 
         // Download
-        XLSX.writeFile(wb, `Garden_Estate_Donations_${year}.xlsx`);
+        XLSX.writeFile(wb, `Modak_Donations_${year}.xlsx`);
 
         showToast('Export downloaded successfully!');
 

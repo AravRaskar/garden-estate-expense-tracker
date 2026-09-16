@@ -142,12 +142,17 @@ DROP POLICY IF EXISTS "Public read individuals" ON individuals;
 DROP POLICY IF EXISTS "Public read expenses" ON expenses;
 DROP POLICY IF EXISTS "Public read timetables" ON timetables;
 
+-- Drop existing write policies
 DROP POLICY IF EXISTS "Public write donations" ON donations;
 DROP POLICY IF EXISTS "Public write individuals" ON individuals;
 DROP POLICY IF EXISTS "Public write expenses" ON expenses;
 DROP POLICY IF EXISTS "Public write timetables" ON timetables;
+DROP POLICY IF EXISTS "Authenticated users write donations" ON donations;
+DROP POLICY IF EXISTS "Authenticated users write individuals" ON individuals;
+DROP POLICY IF EXISTS "Authenticated users write expenses" ON expenses;
+DROP POLICY IF EXISTS "Authenticated users write timetables" ON timetables;
 
--- Create Policies
+-- Create Public Read Policies (Transparency / Public Portal Access)
 CREATE POLICY "Public read buildings" ON buildings FOR SELECT USING (true);
 CREATE POLICY "Public read flats" ON flats FOR SELECT USING (true);
 CREATE POLICY "Public read donations" ON donations FOR SELECT USING (true);
@@ -155,10 +160,11 @@ CREATE POLICY "Public read individuals" ON individuals FOR SELECT USING (true);
 CREATE POLICY "Public read expenses" ON expenses FOR SELECT USING (true);
 CREATE POLICY "Public read timetables" ON timetables FOR SELECT USING (true);
 
-CREATE POLICY "Public write donations" ON donations FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public write individuals" ON individuals FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public write expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public write timetables" ON timetables FOR ALL USING (true) WITH CHECK (true);
+-- Create Authenticated Write Policies (Admin Only — requires valid session)
+CREATE POLICY "Authenticated users write donations" ON donations FOR ALL TO authenticated USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users write individuals" ON individuals FOR ALL TO authenticated USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users write expenses" ON expenses FOR ALL TO authenticated USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users write timetables" ON timetables FOR ALL TO authenticated USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 -- ============================================
 -- Auto-update updated_at triggers
