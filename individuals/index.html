@@ -6,22 +6,33 @@
     <title>Modak: Expense & Collection Tracker</title>
     <meta name="description" content="Track donations, individual contributions, expenses, and daily event timetables with Modak.">
     <meta name="robots" content="noindex, nofollow">
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <script>
-        // Ensure root-relative asset resolution on sub-routes and deep links
-        if (window.location.protocol !== 'file:') {
-            const base = document.createElement('base');
-            base.href = '/';
-            document.head.appendChild(base);
-        }
-        // FOUC Prevention: apply saved theme immediately
-        try {
-            const saved = localStorage.getItem('modak_theme');
-            const isDark = saved ? saved === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        } catch (e) {}
+        // Auto-detect base path for root domains, GitHub Pages subpaths, or custom hosts
+        (function() {
+            if (window.location.protocol !== 'file:') {
+                const routes = ['dashboard', 'buildings', 'individuals', 'expenses', 'timetable', 'public', 'login'];
+                const parts = window.location.pathname.split('/').filter(Boolean);
+                const idx = parts.findIndex(p => routes.includes(p.toLowerCase()) || p.toLowerCase() === 'index.html');
+                let baseHref = '/';
+                if (idx > 0) {
+                    baseHref = '/' + parts.slice(0, idx).join('/') + '/';
+                } else if (parts.length === 1 && !routes.includes(parts[0].toLowerCase()) && parts[0].toLowerCase() !== 'index.html') {
+                    baseHref = '/' + parts[0] + '/';
+                }
+                const base = document.createElement('base');
+                base.href = baseHref;
+                document.head.appendChild(base);
+            }
+            // FOUC Prevention: apply saved theme immediately
+            try {
+                const saved = localStorage.getItem('modak_theme');
+                const isDark = saved ? saved === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+            } catch (e) {}
+        })();
     </script>
-    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
@@ -493,7 +504,7 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <!-- Chart.js for interactive analytics charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="js/app.js"></script>
 
 </body>
 </html>

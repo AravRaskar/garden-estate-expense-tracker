@@ -5,13 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modak - Redirecting...</title>
     <script>
-        // SPA 404 Fallback: Preserve full URL and forward to SPA root
-        const target = window.location.pathname + window.location.search + window.location.hash;
-        sessionStorage.setItem('modak_redirect_route', target);
-        window.location.replace('/');
+        (function() {
+            const path = window.location.pathname;
+            const routes = ['dashboard', 'buildings', 'individuals', 'expenses', 'timetable', 'public', 'login'];
+            const parts = path.split('/').filter(Boolean);
+            const idx = parts.findIndex(p => routes.includes(p.toLowerCase()));
+            let base = '/';
+            if (idx > 0) {
+                base = '/' + parts.slice(0, idx).join('/') + '/';
+            } else if (parts.length === 1 && !routes.includes(parts[0].toLowerCase())) {
+                base = '/' + parts[0] + '/';
+            }
+            sessionStorage.setItem('modak_redirect_route', path + window.location.search + window.location.hash);
+            window.location.replace(base);
+        })();
     </script>
 </head>
-<body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; color: #334155;">
+<body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09100e; color: #cbded8;">
     <p>Loading Modak...</p>
 </body>
 </html>
