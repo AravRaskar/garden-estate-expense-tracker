@@ -213,15 +213,6 @@ function setupLoginForm() {
     const form = document.getElementById('login-form');
     if (!form) return;
 
-    const autofillBtn = document.getElementById('btn-autofill-demo');
-    autofillBtn?.addEventListener('click', () => {
-        const emailEl = document.getElementById('login-email');
-        const passEl = document.getElementById('login-password');
-        if (emailEl) emailEl.value = 'admin@modak.com';
-        if (passEl) passEl.value = 'admin';
-        showToast('Demo credentials filled: admin@modak.com / admin');
-    });
-
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 

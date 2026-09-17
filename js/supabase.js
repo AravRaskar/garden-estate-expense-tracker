@@ -14,79 +14,26 @@ export function getSupabase() {
     return client;
 }
 
-// ── Auth & Mock Credentials ──────────────────
-const MOCK_SESSION_KEY = 'modak_mock_admin_session';
-const authListeners = [];
-
-export const FAKE_CREDENTIALS = {
-    email: 'admin@modak.com',
-    password: 'admin'
-};
+// ── Supabase Authentication ───────────────────
 
 export async function signIn(email, password) {
-    const trimmedEmail = (email || '').trim().toLowerCase();
-    const cleanPass = (password || '').trim();
-
-    // Check fake / mock credentials
-    if (
-        (trimmedEmail === FAKE_CREDENTIALS.email && (cleanPass === FAKE_CREDENTIALS.password || cleanPass === 'admin123')) ||
-        (trimmedEmail === 'admin' && (cleanPass === 'admin' || cleanPass === 'admin123'))
-    ) {
-        const mockSession = {
-            user: { id: 'mock-admin-id', email: FAKE_CREDENTIALS.email, role: 'authenticated' },
-            access_token: 'mock-token-session-active'
-        };
-        localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(mockSession));
-        authListeners.forEach(cb => {
-            try { cb('SIGNED_IN', mockSession); } catch (_) {}
-        });
-        return { session: mockSession, user: mockSession.user };
-    }
-
-    // Fallback: Real Supabase Auth
     const { data, error } = await getSupabase().auth.signInWithPassword({ email, password });
     if (error) throw error;
     return data;
 }
 
 export async function signOut() {
-    if (localStorage.getItem(MOCK_SESSION_KEY)) {
-        localStorage.removeItem(MOCK_SESSION_KEY);
-        authListeners.forEach(cb => {
-            try { cb('SIGNED_OUT', null); } catch (_) {}
-        });
-    }
-    try {
-        await getSupabase().auth.signOut();
-    } catch (_) {}
+    const { error } = await getSupabase().auth.signOut();
+    if (error) throw error;
 }
 
 export async function getSession() {
-    const mock = localStorage.getItem(MOCK_SESSION_KEY);
-    if (mock) {
-        try { return JSON.parse(mock); } catch (_) {}
-    }
     const { data: { session } } = await getSupabase().auth.getSession();
     return session;
 }
 
 export function onAuthStateChange(callback) {
-    authListeners.push(callback);
-
-    // If active mock session exists, notify callback immediately
-    const mock = localStorage.getItem(MOCK_SESSION_KEY);
-    if (mock) {
-        try {
-            const parsed = JSON.parse(mock);
-            setTimeout(() => callback('SIGNED_IN', parsed), 0);
-        } catch (_) {}
-    }
-
-    return getSupabase().auth.onAuthStateChange((event, session) => {
-        if (!localStorage.getItem(MOCK_SESSION_KEY)) {
-            callback(event, session);
-        }
-    });
+    return getSupabase().auth.onAuthStateChange((event, session) => callback(event, session));
 }
 
 // ── Buildings & Flats ────────────────────────
