@@ -75,6 +75,17 @@ CREATE TABLE IF NOT EXISTS timetables (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 7. Public portal access audit (resident selections before viewing details)
+CREATE TABLE IF NOT EXISTS public_portal_access_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    visitor_id UUID NOT NULL,
+    selected_contributor_type TEXT NOT NULL CHECK (selected_contributor_type IN ('building', 'individual')),
+    selected_contributor_id UUID NOT NULL,
+    selected_name TEXT NOT NULL,
+    selected_unit TEXT,
+    accessed_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_donations_year ON donations(year);
 CREATE INDEX IF NOT EXISTS idx_donations_building_year ON donations(building_id, year);
@@ -83,6 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_donations_owner ON donations(owner_name);
 CREATE INDEX IF NOT EXISTS idx_individuals_year ON individuals(year);
 CREATE INDEX IF NOT EXISTS idx_expenses_year ON expenses(year);
 CREATE INDEX IF NOT EXISTS idx_timetables_year ON timetables(year);
+CREATE INDEX IF NOT EXISTS idx_public_portal_access_logs_accessed_at ON public_portal_access_logs(accessed_at DESC);
 
 -- ============================================
 -- Seed Data
@@ -133,6 +145,7 @@ ALTER TABLE donations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE individuals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timetables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public_portal_access_logs ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if re-running
 DROP POLICY IF EXISTS "Public read buildings" ON buildings;
@@ -141,6 +154,8 @@ DROP POLICY IF EXISTS "Public read donations" ON donations;
 DROP POLICY IF EXISTS "Public read individuals" ON individuals;
 DROP POLICY IF EXISTS "Public read expenses" ON expenses;
 DROP POLICY IF EXISTS "Public read timetables" ON timetables;
+DROP POLICY IF EXISTS "Public insert public portal access logs" ON public_portal_access_logs;
+DROP POLICY IF EXISTS "Authenticated read public portal access logs" ON public_portal_access_logs;
 
 -- Drop existing write policies
 DROP POLICY IF EXISTS "Public write donations" ON donations;
@@ -159,6 +174,8 @@ CREATE POLICY "Public read donations" ON donations FOR SELECT USING (true);
 CREATE POLICY "Public read individuals" ON individuals FOR SELECT USING (true);
 CREATE POLICY "Public read expenses" ON expenses FOR SELECT USING (true);
 CREATE POLICY "Public read timetables" ON timetables FOR SELECT USING (true);
+CREATE POLICY "Public insert public portal access logs" ON public_portal_access_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Authenticated read public portal access logs" ON public_portal_access_logs FOR SELECT TO authenticated USING (true);
 
 -- Create Authenticated Write Policies (Admin Only — requires valid session)
 CREATE POLICY "Authenticated users write donations" ON donations FOR ALL TO authenticated USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');

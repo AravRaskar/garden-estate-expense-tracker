@@ -14,7 +14,16 @@
             document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
         } catch (e) {}
     </script>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script>
+        // Hide the admin shell before modules load when a QR visitor opens /public.
+        try {
+            var publicPath = window.location.pathname.replace(/\/$/, '');
+            if (publicPath === '/public' || window.location.hash.indexOf('#public') === 0) {
+                document.documentElement.setAttribute('data-public-route', 'true');
+            }
+        } catch (e) {}
+    </script>
+    <link rel="icon" type="image/png" href="/modak-logo.png">
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>

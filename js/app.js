@@ -10,7 +10,7 @@ import { renderExpenses } from './expenses.js';
 import { renderTimetable } from './timetable.js';
 import { openImportModal, handleExport } from './import-export.js';
 import { initSearch } from './search.js';
-import { renderPublicPortal } from './public-portal.js';
+import { renderPublicPortal } from './public-portal-gated.js';
 import { getCurrentYear, showToast, escapeHtml } from './utils.js';
 import { icon } from './icons.js';
 import { initEasterEggs } from './easter-eggs.js';
@@ -18,6 +18,7 @@ import { initEasterEggs } from './easter-eggs.js';
 let currentYear = getCurrentYear();
 let isAuthenticated = false;
 let appInitialized = false;
+let publicPortalLoading = false;
 
 export function normalizePath(path) {
     if (!path) return '/';
@@ -142,6 +143,12 @@ function initAuth() {
         if (isAuthenticated) handleAdminRoute();
     });
 
+    // Render the public route immediately instead of waiting for the async
+    // authentication check, so QR visitors never see the admin login screen.
+    if (isPublicRoute()) {
+        handleRoute();
+    }
+
     // Global Escape key handler to close modals
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -260,6 +267,8 @@ function handleRoute() {
     if (isPublicRoute(route)) {
         destroyCharts();
         showPublicScreen();
+        if (publicPortalLoading) return;
+        publicPortalLoading = true;
         const container = document.getElementById('public-portal-screen');
         renderPublicPortal(container, currentYear)
             .then(() => {
@@ -276,6 +285,9 @@ function handleRoute() {
                         </div>
                     `;
                 }
+            })
+            .finally(() => {
+                publicPortalLoading = false;
             });
         return;
     }

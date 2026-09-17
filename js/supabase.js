@@ -262,6 +262,44 @@ export async function fetchTimetables(year) {
     return data || [];
 }
 
+// ── Public portal access audit ─────────────────
+
+const PUBLIC_PORTAL_VISITOR_KEY = 'modak_public_portal_visitor_id';
+
+function getPublicPortalVisitorId() {
+    let visitorId = sessionStorage.getItem(PUBLIC_PORTAL_VISITOR_KEY);
+    if (!visitorId) {
+        visitorId = crypto.randomUUID();
+        sessionStorage.setItem(PUBLIC_PORTAL_VISITOR_KEY, visitorId);
+    }
+    return visitorId;
+}
+
+export async function recordPublicPortalAccess(selection) {
+    const { error } = await getSupabase()
+        .from('public_portal_access_logs')
+        .insert({
+            visitor_id: getPublicPortalVisitorId(),
+            selected_contributor_type: selection.type,
+            selected_contributor_id: selection.id,
+            selected_name: selection.name,
+            selected_unit: selection.unit || null
+        });
+
+    if (error) throw error;
+}
+
+export async function fetchPublicPortalAccessLogs(limit = 12) {
+    const { data, error } = await getSupabase()
+        .from('public_portal_access_logs')
+        .select('id, selected_name, selected_unit, accessed_at')
+        .order('accessed_at', { ascending: false })
+        .limit(limit);
+
+    if (error) throw error;
+    return data || [];
+}
+
 export async function saveTimetable(record) {
     const { data, error } = await getSupabase()
         .from('timetables')

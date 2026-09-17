@@ -217,6 +217,8 @@ a:hover {
 [data-theme="dark"] .modal,
 [data-theme="dark"] .public-hero-card,
 [data-theme="dark"] .contributor-card,
+[data-theme="dark"] .public-access-gate,
+[data-theme="dark"] .public-expenses-section,
 [data-theme="dark"] .public-tt-card,
 [data-theme="dark"] .flats-table-wrapper,
 [data-theme="dark"] .qr-flyer-card {
@@ -505,6 +507,18 @@ a:hover {
 .ui-icon-lg { width: 1.5em; height: 1.5em; }
 .ui-icon-xl { width: 2em; height: 2em; }
 .ui-icon-brand { width: 1.75rem; height: 1.75rem; }
+
+/* Keep every in-app Modak mark identical to the browser favicon. */
+.logo-icon .ui-icon-brand,
+.public-logo .ui-icon-brand {
+    width: 78%;
+    height: 78%;
+    background: url('/modak-logo.png') center / contain no-repeat;
+}
+.logo-icon .ui-icon-brand svg,
+.public-logo .ui-icon-brand svg {
+    display: none;
+}
 
 h1, h2, h3, h4, .logo-text, .kpi-value, .hero-amount, .v-amount-highlight, .summary-value {
     font-family: var(--font-heading);
@@ -2061,6 +2075,202 @@ textarea::placeholder {
     padding-top: 2rem;
     color: var(--slate-400);
     font-size: 0.75rem;
+}
+
+/* Public-route bootstrap and mobile-first resident dashboard */
+html[data-public-route="true"] #login-screen,
+html[data-public-route="true"] #app-layout {
+    display: none !important;
+}
+html[data-public-route="true"] #public-portal-screen.hidden {
+    display: block !important;
+}
+html[data-public-route="true"] #public-portal-screen:empty {
+    display: grid !important;
+    place-items: center;
+}
+html[data-public-route="true"] #public-portal-screen:empty::before {
+    content: 'Opening public dashboard…';
+    color: var(--slate-600);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+.public-portal-screen {
+    padding: 0.875rem 0.75rem 2.5rem;
+}
+.public-header {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+}
+.public-header > .btn {
+    align-self: flex-end;
+    margin-top: -3.5rem;
+}
+.public-brand h1 {
+    font-size: 1.35rem;
+}
+.public-access-gate,
+.public-expenses-section {
+    background: #ffffff;
+    border: 1px solid var(--slate-200);
+    border-bottom: 2px solid var(--slate-300);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.public-access-gate {
+    display: grid;
+    gap: 0.75rem;
+}
+.public-access-icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    color: var(--pine-800);
+    background: var(--pine-50);
+    border: 1px solid var(--pine-200);
+    border-radius: var(--radius-md);
+    font-size: 1.2rem;
+}
+.public-eyebrow,
+.expense-label {
+    color: var(--slate-500);
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+.public-access-gate h2,
+.public-expenses-section h2 {
+    color: var(--slate-900);
+    font-size: 1.35rem;
+    line-height: 1.2;
+    margin: 0.2rem 0 0.4rem;
+}
+.public-access-form {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+.public-access-form > label:first-child,
+.contributor-card .form-group > label {
+    color: var(--slate-800);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+.public-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    color: var(--slate-700);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+.public-consent input {
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.1rem;
+    accent-color: var(--pine-700);
+}
+.public-access-submit {
+    justify-content: center;
+    min-height: 2.75rem;
+    width: 100%;
+}
+.public-arrow-right {
+    display: inline-flex;
+    transform: rotate(180deg);
+}
+.public-access-error {
+    color: var(--error);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+.public-dashboard-details[hidden] {
+    display: none !important;
+}
+.public-hero-card,
+.contributor-card {
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.hero-stats {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+.hero-amount {
+    font-size: 2rem;
+}
+.hero-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+.section-heading .search-input {
+    box-sizing: border-box;
+    max-width: none;
+    width: 100%;
+}
+.public-expense-total {
+    color: var(--error);
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+.public-expense-total span {
+    display: block;
+    color: var(--slate-500);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.public-expense-list {
+    display: grid;
+    gap: 0.625rem;
+}
+.public-expense-row {
+    display: grid;
+    gap: 0.5rem;
+    border: 1px solid var(--slate-200);
+    border-radius: var(--radius-md);
+    padding: 0.9rem;
+}
+.public-expense-row strong {
+    color: var(--slate-900);
+    display: block;
+    font-size: 0.9rem;
+    margin-top: 0.15rem;
+}
+.public-expense-amount strong {
+    color: var(--error);
+    font-size: 1.05rem;
+}
+.public-expense-meta,
+.public-empty-note {
+    color: var(--slate-600);
+    font-size: 0.8125rem;
+}
+
+@media (min-width: 640px) {
+    .public-portal-screen { padding: 1.5rem 1rem 3.5rem; }
+    .public-header { align-items: center; flex-direction: row; }
+    .public-header > .btn { align-self: auto; margin-top: 0; }
+    .public-access-gate { grid-template-columns: auto 1fr; padding: 1.75rem; }
+    .public-access-form { grid-column: 2; }
+    .hero-stats { grid-template-columns: 1.4fr 1fr; gap: 1.75rem; }
+    .hero-meta { align-items: center; flex-direction: row; gap: 0.625rem; }
+    .section-heading { align-items: center; flex-direction: row; justify-content: space-between; }
+    .section-heading .search-input { max-width: 320px; }
+    .public-expense-row { grid-template-columns: 1.1fr 1.3fr auto; align-items: center; }
+    .public-expense-meta { grid-column: 1 / -1; }
 }
 
 /* ==============================================

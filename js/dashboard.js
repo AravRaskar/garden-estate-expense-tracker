@@ -2,7 +2,7 @@
 // Dashboard / Analytics Module (Chart.js Interactive)
 // ============================================
 
-import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses } from './supabase.js';
+import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses, fetchPublicPortalAccessLogs } from './supabase.js';
 import { formatCurrency, getBuildingIcon, getProgressColor, escapeHtml } from './utils.js';
 import { icon } from './icons.js';
 
@@ -29,11 +29,12 @@ export async function renderDashboard(container, year) {
     `;
 
     try {
-        const [buildings, donations, individuals, expenses] = await Promise.all([
+        const [buildings, donations, individuals, expenses, publicPortalAccessLogs] = await Promise.all([
             fetchBuildings(),
             fetchAllDonations(year),
             fetchIndividuals(year),
-            fetchExpenses(year)
+            fetchExpenses(year),
+            fetchPublicPortalAccessLogs().catch(() => [])
         ]);
 
         const buildingCollection = donations.reduce((sum, d) => sum + (d.donated ? parseFloat(d.amount) || 0 : 0), 0);
@@ -190,6 +191,31 @@ export async function renderDashboard(container, year) {
                         </div>
                     `).join('')}
                 </div>
+
+                <section class="chart-section" style="margin-top: 2rem; padding: 1.5rem;">
+                    <div class="section-heading" style="margin-bottom: 1rem;">
+                        <div>
+                            <h2 style="font-size: 1.1rem;">${icon('user')} Public dashboard access</h2>
+                            <p class="text-muted text-sm">Most recent residents who opened the public financial dashboard.</p>
+                        </div>
+                    </div>
+                    ${publicPortalAccessLogs.length ? `
+                        <div class="flats-table-wrapper">
+                            <table class="flats-table">
+                                <thead><tr><th>Selected resident</th><th>Unit</th><th>Accessed</th></tr></thead>
+                                <tbody>
+                                    ${publicPortalAccessLogs.map(log => `
+                                        <tr>
+                                            <td style="font-weight: 600;">${escapeHtml(log.selected_name)}</td>
+                                            <td>${escapeHtml(log.selected_unit || '—')}</td>
+                                            <td class="text-muted">${formatAccessDate(log.accessed_at)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : '<p class="text-muted text-sm">No public dashboard access has been recorded yet.</p>'}
+                </section>
             </div>
         `;
 
@@ -219,6 +245,18 @@ export async function renderDashboard(container, year) {
         console.error('Dashboard error:', err);
         container.innerHTML = `<div class="empty-state"><h3>Failed to load dashboard</h3><p>${escapeHtml(err.message)}</p></div>`;
     }
+}
+
+function formatAccessDate(value) {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
 }
 
 function initCharts({ totalCollection, totalExpenses, buildingStats, individualCollection, expenseCategoryMap, txModeMap }) {
