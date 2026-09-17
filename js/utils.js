@@ -6,9 +6,9 @@
  * Format a number as Indian Rupee currency
  */
 export function formatCurrency(amount) {
-    if (amount === null || amount === undefined || amount === '') return '—';
+    if (amount === null || amount === undefined || amount === '') return '-';
     const num = parseFloat(amount);
-    if (isNaN(num)) return '—';
+    if (isNaN(num)) return '-';
     return new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
@@ -29,7 +29,7 @@ export function debounce(fn, delay = 300) {
 }
 
 /**
- * Normalize owner name — trim and title case
+ * Normalize owner name: trim and title case
  */
 export function normalizeOwnerName(name) {
     if (!name) return '';
@@ -101,9 +101,13 @@ export function showToast(message, type = 'success') {
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
 
-    const icons = { success: '✓', error: '✕', info: 'ℹ' };
+    const toastIcons = {
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 6 9 17l-5-5"/></svg>',
+        error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>'
+    };
     toast.innerHTML = `
-        <span class="toast-icon">${icons[type] || icons.info}</span>
+        <span class="toast-icon">${toastIcons[type] || toastIcons.info}</span>
         <span class="toast-message">${escapeHtml(message)}</span>
     `;
 
@@ -135,7 +139,7 @@ export function showConfirmModal(message, title = 'Confirm Action') {
         }
 
         document.getElementById('confirm-modal-title').innerHTML = `
-            <span style="background: var(--error-light); padding: 0.375rem; border-radius: var(--radius-md);">⚠️</span>
+            <span style="background: var(--error-light); padding: 0.375rem; border-radius: var(--radius-md);"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg></span></span>
             ${escapeHtml(title)}
         `;
         document.getElementById('confirm-modal-message').textContent = message;
@@ -146,8 +150,14 @@ export function showConfirmModal(message, title = 'Confirm Action') {
         const cancelBtn = document.getElementById('confirm-cancel-btn');
         const closeBtn = document.getElementById('confirm-modal-close');
 
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') cleanup(false);
+        };
+        document.addEventListener('keydown', handleKeyDown);
+
         const cleanup = (result) => {
             overlay.classList.remove('active');
+            document.removeEventListener('keydown', handleKeyDown);
             okBtn.onclick = null;
             cancelBtn.onclick = null;
             closeBtn.onclick = null;
@@ -166,7 +176,7 @@ export function showConfirmModal(message, title = 'Confirm Action') {
  * Format a date string for display
  */
 export function formatDate(dateStr) {
-    if (!dateStr) return '—';
+    if (!dateStr) return '-';
     const date = new Date(dateStr + 'T00:00:00');
     return date.toLocaleDateString('en-IN', {
         day: '2-digit',
@@ -192,10 +202,13 @@ export function escapeHtml(str) {
 }
 
 /**
- * Get a building icon/emoji based on building name
+ * Get a building icon based on building name
  */
 export function getBuildingIcon(name) {
-    return '🏢';
+    // Lazy import to avoid circular dependency
+    const { icon } = window.__modakIcons || {};
+    if (icon) return icon('building');
+    return '<span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M4 21h16M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M11 21v-3h2v3"/></svg></span>';
 }
 
 /**

@@ -4,18 +4,25 @@
 
 import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses } from './supabase.js';
 import { formatCurrency, getBuildingIcon, getProgressColor, escapeHtml } from './utils.js';
+import { icon } from './icons.js';
 
 let chartInstances = {};
 
+export function destroyCharts() {
+    Object.values(chartInstances).forEach(c => {
+        try { c?.destroy(); } catch (e) {}
+    });
+    chartInstances = {};
+}
+
 export async function renderDashboard(container, year) {
     // Destroy previous chart instances if re-rendering
-    Object.values(chartInstances).forEach(c => c?.destroy());
-    chartInstances = {};
+    destroyCharts();
 
     container.innerHTML = `
         <div class="page-enter">
             <div class="page-header">
-                <h1><span class="header-icon">📊</span> Analytics & Dashboard</h1>
+                <h1><span class="header-icon">${icon('dashboard')}</span> Analytics & Dashboard</h1>
             </div>
             <div class="loading-spinner"><div class="spinner-ring"></div></div>
         </div>
@@ -52,7 +59,7 @@ export async function renderDashboard(container, year) {
         // Expenses category map
         const expenseCategoryMap = {};
         expenses.forEach(e => {
-            const category = e.spent_on.trim() || 'General Operations';
+            const category = (e.spent_on || '').trim() || 'General Operations';
             expenseCategoryMap[category] = (expenseCategoryMap[category] || 0) + (parseFloat(e.amount) || 0);
         });
 
@@ -72,7 +79,7 @@ export async function renderDashboard(container, year) {
         container.innerHTML = `
             <div class="page-enter">
                 <div class="page-header">
-                    <h1><span class="header-icon">📊</span> Analytics & Dashboard (${year})</h1>
+                    <h1><span class="header-icon">${icon('dashboard')}</span> Analytics & Dashboard (${year})</h1>
                 </div>
 
                 <!-- Global Financial KPIs -->
@@ -80,7 +87,7 @@ export async function renderDashboard(container, year) {
                     <div class="kpi-card kpi-total">
                         <div class="kpi-header">
                             <span class="kpi-label">Total Collection</span>
-                            <div class="kpi-icon">💰</div>
+                            <div class="kpi-icon">${icon('wallet')}</div>
                         </div>
                         <div class="kpi-value">${formatCurrency(totalCollection)}</div>
                         <div class="kpi-sub">Buildings (₹${(buildingCollection/1000).toFixed(1)}k) + Ind. (₹${(individualCollection/1000).toFixed(1)}k)</div>
@@ -88,7 +95,7 @@ export async function renderDashboard(container, year) {
                     <div class="kpi-card kpi-pending" style="border-top-color: var(--error);">
                         <div class="kpi-header">
                             <span class="kpi-label">Total Expenses</span>
-                            <div class="kpi-icon">💸</div>
+                            <div class="kpi-icon">${icon('receipt')}</div>
                         </div>
                         <div class="kpi-value" style="color: var(--error);">${formatCurrency(totalExpenses)}</div>
                         <div class="kpi-sub">${expenses.length} expense logs</div>
@@ -96,7 +103,7 @@ export async function renderDashboard(container, year) {
                     <div class="kpi-card ${netBalance >= 0 ? 'kpi-received' : 'kpi-pending'}">
                         <div class="kpi-header">
                             <span class="kpi-label">Net Surplus / Balance</span>
-                            <div class="kpi-icon">⚖️</div>
+                            <div class="kpi-icon">${icon('scale')}</div>
                         </div>
                         <div class="kpi-value" style="color: ${netBalance >= 0 ? 'var(--success)' : 'var(--error)'};">
                             ${formatCurrency(netBalance)}
@@ -106,7 +113,7 @@ export async function renderDashboard(container, year) {
                     <div class="kpi-card kpi-flats">
                         <div class="kpi-header">
                             <span class="kpi-label">Flat Collection Rate</span>
-                            <div class="kpi-icon">🏠</div>
+                            <div class="kpi-icon">${icon('home')}</div>
                         </div>
                         <div class="kpi-value">${collectionRate}%</div>
                         <div class="kpi-sub">${totalDonatedFlats} of ${totalFlats} flats</div>
@@ -114,10 +121,10 @@ export async function renderDashboard(container, year) {
                 </div>
 
                 <!-- Interactive Charts Row 1: Collection vs Expenses + Expense Pie Chart -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     <!-- Collection vs Expenditure Bar Chart -->
                     <div class="chart-section" style="margin-top: 0; padding: 1.5rem;">
-                        <h3 style="margin-bottom: 1rem;">⚖️ Collection vs Expenditure</h3>
+                        <h3 style="margin-bottom: 1rem;">${icon('scale')} Collection vs Expenditure</h3>
                         <div style="height: 260px; position: relative;">
                             <canvas id="chart-income-vs-expense"></canvas>
                         </div>
@@ -125,7 +132,7 @@ export async function renderDashboard(container, year) {
 
                     <!-- Expenses Breakdown Donut Chart -->
                     <div class="chart-section" style="margin-top: 0; padding: 1.5rem;">
-                        <h3 style="margin-bottom: 1rem;">📊 Expenses Breakdown</h3>
+                        <h3 style="margin-bottom: 1rem;">${icon('dashboard')} Expenses Breakdown</h3>
                         <div style="height: 260px; position: relative;">
                             <canvas id="chart-expenses-pie"></canvas>
                         </div>
@@ -133,10 +140,10 @@ export async function renderDashboard(container, year) {
                 </div>
 
                 <!-- Interactive Charts Row 2: Building Collection Bar + Payment Mode Donut -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                     <!-- Collection by Building Bar Chart -->
                     <div class="chart-section" style="margin-top: 0; padding: 1.5rem; flex: 2;">
-                        <h3 style="margin-bottom: 1rem;">🏢 Collection by Building & Individuals</h3>
+                        <h3 style="margin-bottom: 1rem;">${icon('building')} Collection by Building & Individuals</h3>
                         <div style="height: 300px; position: relative;">
                             <canvas id="chart-building-collection"></canvas>
                         </div>
@@ -144,7 +151,7 @@ export async function renderDashboard(container, year) {
 
                     <!-- Payment Mode Breakdown -->
                     <div class="chart-section" style="margin-top: 0; padding: 1.5rem; flex: 1;">
-                        <h3 style="margin-bottom: 1rem;">💳 Collection by Payment Type</h3>
+                        <h3 style="margin-bottom: 1rem;">${icon('creditCard')} Collection by Payment Type</h3>
                         <div style="height: 300px; position: relative;">
                             <canvas id="chart-payment-types"></canvas>
                         </div>
@@ -200,7 +207,11 @@ export async function renderDashboard(container, year) {
         container.querySelectorAll('.building-card').forEach(card => {
             card.addEventListener('click', () => {
                 const name = card.dataset.buildingName;
-                window.location.hash = `#buildings/${encodeURIComponent(name)}`;
+                if (window.navigateTo) {
+                    window.navigateTo(`/buildings/${encodeURIComponent(name)}`);
+                } else {
+                    window.location.pathname = `/buildings/${encodeURIComponent(name)}`;
+                }
             });
         });
 
@@ -213,6 +224,24 @@ export async function renderDashboard(container, year) {
 function initCharts({ totalCollection, totalExpenses, buildingStats, individualCollection, expenseCategoryMap, txModeMap }) {
     if (typeof Chart === 'undefined') return;
 
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(226, 232, 240, 0.7)';
+    const tickColor = isDark ? '#88a39a' : '#64748b';
+    const xTickColor = isDark ? '#cbdad4' : '#475569';
+    const doughnutBorder = isDark ? '#0e1715' : '#ffffff';
+
+    const commonTooltip = {
+        backgroundColor: isDark ? '#14201d' : '#0f172a',
+        titleColor: '#f8fafc',
+        bodyColor: '#f8fafc',
+        titleFont: { family: "'Plus Jakarta Sans', sans-serif", size: 12, weight: '600' },
+        bodyFont: { family: "'Plus Jakarta Sans', sans-serif", size: 12 },
+        padding: 10,
+        cornerRadius: 6,
+        borderColor: isDark ? '#243631' : '#334155',
+        borderWidth: 1
+    };
+
     // Chart 1: Collection vs Expenditure (Bar)
     const ctxIncomeExpense = document.getElementById('chart-income-vs-expense')?.getContext('2d');
     if (ctxIncomeExpense) {
@@ -224,13 +253,13 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                     label: 'Amount (₹)',
                     data: [totalCollection, totalExpenses, Math.max(0, totalCollection - totalExpenses)],
                     backgroundColor: [
-                        'rgba(13, 148, 136, 0.85)', // Teal
-                        'rgba(239, 68, 68, 0.85)',   // Red
-                        'rgba(34, 197, 94, 0.85)'    // Green
+                        'rgba(15, 89, 72, 0.9)',   // Pine
+                        'rgba(185, 28, 28, 0.9)',  // Terracotta
+                        'rgba(21, 128, 61, 0.9)'   // Forest Emerald
                     ],
-                    borderColor: ['#0d9488', '#ef4444', '#22c55e'],
-                    borderWidth: 2,
-                    borderRadius: 8,
+                    borderColor: ['#0f5948', '#b91c1c', '#15803d'],
+                    borderWidth: 1.5,
+                    borderRadius: 6,
                 }]
             },
             options: {
@@ -239,15 +268,23 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        ...commonTooltip,
                         callbacks: {
                             label: (ctx) => ` ₹${ctx.raw.toLocaleString('en-IN')}`
                         }
                     }
                 },
                 scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: "'Plus Jakarta Sans', sans-serif", size: 11, weight: '600' }, color: xTickColor }
+                    },
                     y: {
                         beginAtZero: true,
+                        grid: { color: gridColor },
                         ticks: {
+                            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            color: tickColor,
                             callback: (val) => '₹' + (val >= 1000 ? (val/1000) + 'k' : val)
                         }
                     }
@@ -261,9 +298,9 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
     if (ctxExpenses) {
         const expLabels = Object.keys(expenseCategoryMap);
         const expValues = Object.values(expenseCategoryMap);
-        const vibrantColors = [
-            '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#8b5cf6',
-            '#ec4899', '#06b6d4', '#f97316', '#6366f1', '#14b8a6'
+        const refinedColors = [
+            '#0f5948', '#b45309', '#1d4ed8', '#7c3aed', '#b91c1c',
+            '#0284c7', '#15803d', '#c026d3', '#ea580c', '#475569'
         ];
 
         chartInstances.expensesPie = new Chart(ctxExpenses, {
@@ -272,10 +309,10 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 labels: expLabels.length > 0 ? expLabels : ['No Expenses Yet'],
                 datasets: [{
                     data: expValues.length > 0 ? expValues : [1],
-                    backgroundColor: expValues.length > 0 ? vibrantColors.slice(0, expLabels.length) : ['#e2e8f0'],
-                    borderWidth: 3,
-                    borderColor: '#ffffff',
-                    hoverOffset: 10
+                    backgroundColor: expValues.length > 0 ? refinedColors.slice(0, expLabels.length) : ['#e2e8f0'],
+                    borderWidth: 2,
+                    borderColor: doughnutBorder,
+                    hoverOffset: 6
                 }]
             },
             options: {
@@ -284,9 +321,15 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 plugins: {
                     legend: {
                         position: 'right',
-                        labels: { boxWidth: 14, font: { size: 12 } }
+                        labels: {
+                            boxWidth: 12,
+                            padding: 10,
+                            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            color: tickColor
+                        }
                     },
                     tooltip: {
+                        ...commonTooltip,
                         callbacks: {
                             label: (ctx) => ` ${ctx.label}: ₹${ctx.raw.toLocaleString('en-IN')}`
                         }
@@ -314,10 +357,10 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 datasets: [{
                     label: 'Collection (₹)',
                     data: bValues,
-                    backgroundColor: bLabels.map(l => l === 'Individuals' ? 'rgba(245, 158, 11, 0.85)' : 'rgba(20, 184, 166, 0.85)'),
-                    borderColor: bLabels.map(l => l === 'Individuals' ? '#f59e0b' : '#0d9488'),
+                    backgroundColor: bLabels.map(l => l === 'Individuals' ? 'rgba(180, 83, 9, 0.9)' : 'rgba(15, 89, 72, 0.9)'),
+                    borderColor: bLabels.map(l => l === 'Individuals' ? '#b45309' : '#0f5948'),
                     borderWidth: 1.5,
-                    borderRadius: 6
+                    borderRadius: 5
                 }]
             },
             options: {
@@ -326,16 +369,23 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        ...commonTooltip,
                         callbacks: {
                             label: (ctx) => ` Collected: ₹${ctx.raw.toLocaleString('en-IN')}`
                         }
                     }
                 },
                 scales: {
-                    x: { ticks: { font: { size: 11 } } },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: "'Plus Jakarta Sans', sans-serif", size: 11, weight: '500' }, color: xTickColor }
+                    },
                     y: {
                         beginAtZero: true,
+                        grid: { color: gridColor },
                         ticks: {
+                            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            color: tickColor,
                             callback: (val) => '₹' + (val >= 1000 ? (val/1000) + 'k' : val)
                         }
                     }
@@ -350,11 +400,11 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
         const payLabels = Object.keys(txModeMap);
         const payValues = Object.values(txModeMap);
         const modeColors = {
-            'UPI': '#3b82f6',
-            'Cash': '#22c55e',
-            'Bank Transfer': '#8b5cf6',
-            'Cheque': '#f59e0b',
-            'Other': '#64748b'
+            'UPI': '#1d4ed8',
+            'Cash': '#15803d',
+            'Bank Transfer': '#7c3aed',
+            'Cheque': '#b45309',
+            'Other': '#475569'
         };
 
         chartInstances.paymentTypes = new Chart(ctxPayment, {
@@ -363,10 +413,10 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 labels: payLabels.length > 0 ? payLabels : ['No Payments Yet'],
                 datasets: [{
                     data: payValues.length > 0 ? payValues : [1],
-                    backgroundColor: payLabels.length > 0 ? payLabels.map(l => modeColors[l] || '#06b6d4') : ['#e2e8f0'],
-                    borderWidth: 3,
-                    borderColor: '#ffffff',
-                    hoverOffset: 8
+                    backgroundColor: payLabels.length > 0 ? payLabels.map(l => modeColors[l] || '#0f5948') : ['#e2e8f0'],
+                    borderWidth: 2,
+                    borderColor: doughnutBorder,
+                    hoverOffset: 6
                 }]
             },
             options: {
@@ -375,9 +425,15 @@ function initCharts({ totalCollection, totalExpenses, buildingStats, individualC
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { boxWidth: 12, font: { size: 11 } }
+                        labels: {
+                            boxWidth: 10,
+                            padding: 8,
+                            font: { family: "'Plus Jakarta Sans', sans-serif", size: 11 },
+                            color: tickColor
+                        }
                     },
                     tooltip: {
+                        ...commonTooltip,
                         callbacks: {
                             label: (ctx) => ` ${ctx.label}: ₹${ctx.raw.toLocaleString('en-IN')}`
                         }

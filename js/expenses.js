@@ -4,12 +4,13 @@
 
 import { fetchExpenses, saveExpense, deleteExpense } from './supabase.js';
 import { formatCurrency, formatDate, escapeHtml, showToast, showConfirmModal } from './utils.js';
+import { icon } from './icons.js';
 
 export async function renderExpenses(container, year) {
     container.innerHTML = `
         <div class="page-enter">
             <div class="page-header">
-                <h1><span class="header-icon">💸</span> Expenses Tracker</h1>
+                <h1><span class="header-icon">${icon('receipt')}</span> Expenses Tracker</h1>
                 <button class="btn btn-primary" id="btn-add-expense">+ Log Expense</button>
             </div>
             <div class="loading-spinner"><div class="spinner-ring"></div></div>
@@ -24,7 +25,7 @@ export async function renderExpenses(container, year) {
             <div class="page-enter">
                 <div class="page-header">
                     <div>
-                        <h1><span class="header-icon">💸</span> Expenses Tracker</h1>
+                        <h1><span class="header-icon">${icon('receipt')}</span> Expenses Tracker</h1>
                         <p class="text-muted text-sm">Track money given to personnel, contractors, or spent on event operations</p>
                     </div>
                     <button class="btn btn-primary" id="btn-add-expense">+ Log New Expense</button>
@@ -48,8 +49,8 @@ export async function renderExpenses(container, year) {
                                 <th>Given To (Recipient)</th>
                                 <th>Spent On (Purpose)</th>
                                 <th>Amount</th>
-                                <th>Payment Type</th>
-                                <th>Date Spent</th>
+                                <th class="hide-mobile">Payment Type</th>
+                                <th class="hide-mobile">Date Spent</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -65,12 +66,12 @@ export async function renderExpenses(container, year) {
                                     <td class="owner-name">${escapeHtml(item.given_to)}</td>
                                     <td style="font-weight: 500;">${escapeHtml(item.spent_on)}</td>
                                     <td class="amount-cell" style="color: var(--error);">${formatCurrency(item.amount)}</td>
-                                    <td class="transaction-type">${escapeHtml(item.transaction_type || '—')}</td>
-                                    <td>${formatDate(item.date_spent)}</td>
+                                    <td class="transaction-type hide-mobile">${escapeHtml(item.transaction_type || '-')}</td>
+                                    <td class="hide-mobile">${formatDate(item.date_spent)}</td>
                                     <td>
                                         <div style="display: flex; gap: 0.5rem;">
-                                            <button class="btn-edit btn-edit-exp" data-id="${item.id}">✏️ Edit</button>
-                                            <button class="btn-edit btn-del-exp" data-id="${item.id}" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">🗑️</button>
+                                            <button class="btn-edit btn-edit-exp" data-id="${item.id}" aria-label="Edit expense entry">${icon('edit')} Edit</button>
+                                            <button class="btn-edit btn-del-exp" data-id="${item.id}" aria-label="Delete expense entry" style="background: var(--error-light); color: var(--error); border-color: var(--error-border);">${icon('trash')}</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -149,7 +150,7 @@ function openExpenseModal(item, year, onSave) {
                 spent_on,
                 amount,
                 transaction_type,
-                date_spent
+                date_spent: date_spent || null
             });
             showToast(isEdit ? 'Expense updated' : 'Expense recorded');
             overlay.classList.remove('active');
@@ -164,4 +165,5 @@ function openExpenseModal(item, year, onSave) {
     const close = () => overlay.classList.remove('active');
     document.getElementById('exp-modal-close').onclick = close;
     document.getElementById('exp-cancel-btn').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
 }

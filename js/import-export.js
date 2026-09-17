@@ -8,11 +8,17 @@ import {
 import {
     parseCSV, showToast, matchColumnHeader, normalizeOwnerName, escapeHtml
 } from './utils.js';
+import { icon } from './icons.js';
+
+let currentImportYear = null;
+let importTabsInitialized = false;
+let excelImportInitialized = false;
 
 /**
  * Open the import modal
  */
 export function openImportModal(year) {
+    currentImportYear = year;
     const overlay = document.getElementById('import-modal-overlay');
     overlay.classList.add('active');
 
@@ -21,14 +27,14 @@ export function openImportModal(year) {
     document.getElementById('import-file-input').value = '';
     hideImportResult();
 
-    // Set up tabs
+    // Set up tabs (one-time init)
     setupImportTabs();
 
     // Set up Google Sheets import
     setupSheetsImport(year);
 
     // Set up Excel import
-    setupExcelImport(year);
+    setupExcelImport();
 
     // Set up template download button
     setupTemplateDownload();
@@ -57,7 +63,7 @@ function setupTemplateDownload() {
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Sample Template');
-        XLSX.writeFile(wb, 'Garden_Estate_Import_Template.xlsx');
+        XLSX.writeFile(wb, 'Modak_Import_Template.xlsx');
         showToast('Sample template downloaded!');
     };
 }
@@ -67,6 +73,9 @@ function closeImportModal() {
 }
 
 function setupImportTabs() {
+    if (importTabsInitialized) return;
+    importTabsInitialized = true;
+
     const tabs = document.querySelectorAll('.import-tab');
     const contents = document.querySelectorAll('.import-tab-content');
 
@@ -75,7 +84,7 @@ function setupImportTabs() {
             tabs.forEach(t => t.classList.remove('active'));
             contents.forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
-            document.getElementById(tab.dataset.tab).classList.add('active');
+            document.getElementById(tab.dataset.tab)?.classList.add('active');
             hideImportResult();
         });
     });
@@ -132,34 +141,36 @@ function setupSheetsImport(year) {
     });
 }
 
-function setupExcelImport(year) {
+function setupExcelImport() {
     const dropzone = document.getElementById('import-file-dropzone');
     const fileInput = document.getElementById('import-file-input');
+    if (!dropzone || !fileInput) return;
 
-    // Click to upload
-    dropzone.onclick = () => fileInput.click();
+    if (!excelImportInitialized) {
+        excelImportInitialized = true;
+        dropzone.onclick = () => fileInput.click();
 
-    // Drag and drop
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
-    });
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('dragover');
-    });
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        const file = e.dataTransfer.files[0];
-        if (file) handleExcelFile(file, year);
-    });
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleExcelFile(file, currentImportYear);
+        });
+    }
 
-    // File input change
+    // Reset file input to clean listener closures
     const newInput = fileInput.cloneNode(true);
     fileInput.parentNode.replaceChild(newInput, fileInput);
     newInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (file) handleExcelFile(file, year);
+        if (file) handleExcelFile(file, currentImportYear);
     });
 }
 
@@ -172,7 +183,7 @@ async function handleExcelFile(file, year) {
     const dropzone = document.getElementById('import-file-dropzone');
     const originalHTML = dropzone.innerHTML;
     dropzone.innerHTML = `
-        <div class="dropzone-icon">⏳</div>
+        <div class="dropzone-icon" style="font-size: 2.25rem; color: var(--primary-600);">${icon('download', 'ui-icon-xl')}</div>
         <div class="dropzone-text">Processing ${escapeHtml(file.name)}...</div>
     `;
 
@@ -183,12 +194,32 @@ async function handleExcelFile(file, year) {
             const text = await file.text();
             rows = parseCSV(text);
         } else {
-            // Use SheetJS
+            // Use SheetJS with cellDates: true to avoid numeric date serials
             const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
+            const workbook = XLSX.read(data, { type: 'array', cellDates: true });
             const firstSheetName = workbook.SheetNames[0];
             const firstSheet = workbook.Sheets[firstSheetName];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
+
+            // Helper to format values and handle Date objects without UTC off-by-one timezone shift
+            const formatVal = (val) => {
+                if (val instanceof Date) {
+                    const y = val.getFullYear();
+                    const m = String(val.getMonth() + 1).padStart(2, '0');
+                    const d = String(val.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${d}`;
+                }
+                if (typeof val === 'number' && val > 30000 && val < 60000) {
+                    try {
+                        const date = new Date((val - 25569) * 86400 * 1000);
+                        const y = date.getUTCFullYear();
+                        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+                        const d = String(date.getUTCDate()).padStart(2, '0');
+                        return `${y}-${m}-${d}`;
+                    } catch (e) {}
+                }
+                return String(val ?? '').trim();
+            };
 
             // Convert to flexible row format
             rows = jsonData.map(row => {
@@ -196,12 +227,13 @@ async function handleExcelFile(file, year) {
                 Object.keys(row).forEach(originalKey => {
                     const cleanKey = originalKey.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
                     const mappedKey = matchColumnHeader(originalKey);
+                    const formatted = formatVal(row[originalKey]);
 
                     // Set both the mapped standard key AND the cleaned original key as fallback
                     if (mappedKey) {
-                        normalized[mappedKey] = String(row[originalKey]).trim();
+                        normalized[mappedKey] = formatted;
                     }
-                    normalized[cleanKey] = String(row[originalKey]).trim();
+                    normalized[cleanKey] = formatted;
                 });
                 return normalized;
             });
@@ -350,10 +382,6 @@ function showImportResult(result) {
 
     if (result.success) {
         showToast(result.message);
-        // Trigger a refresh of the current view
-        setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('data-imported'));
-        }, 500);
     }
 }
 
@@ -422,7 +450,7 @@ export async function handleExport(year) {
         XLSX.utils.book_append_sheet(wb, ws, `Donations ${year}`);
 
         // Download
-        XLSX.writeFile(wb, `Garden_Estate_Donations_${year}.xlsx`);
+        XLSX.writeFile(wb, `Modak_Donations_${year}.xlsx`);
 
         showToast('Export downloaded successfully!');
 
