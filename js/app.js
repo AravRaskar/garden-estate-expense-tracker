@@ -468,6 +468,7 @@ function updateSidebarActive(route = getCurrentRoute()) {
 }
 
 function setupQRFlyerModal() {
+    const productionOrigin = 'https://gardenestateexpensetracker.vercel.app';
     const btn = document.getElementById('btn-qr-flyer');
     const overlay = document.getElementById('qr-flyer-modal-overlay');
     const closeBtn = document.getElementById('qr-flyer-modal-close');
@@ -479,14 +480,12 @@ function setupQRFlyerModal() {
     if (!btn || !overlay) return;
 
     btn.addEventListener('click', () => {
-        // Construct clean root URL (no /# needed)
-        const origin = window.location.origin;
-        let publicUrl;
-        if (window.location.protocol === 'file:') {
-            publicUrl = `${window.location.href.split('#')[0]}#public`;
-        } else {
-            publicUrl = `${origin}/public`;
-        }
+        // A QR flyer must be usable away from this computer. When it is made
+        // during local development, point it at the live public portal.
+        const isLocal = window.location.protocol === 'file:' ||
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+        const publicUrl = `${isLocal ? productionOrigin : window.location.origin}/public`;
 
         // Generate QR Code via high-contrast QR service
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicUrl)}&margin=10`;
