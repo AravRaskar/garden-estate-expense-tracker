@@ -5,20 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modak - Redirecting...</title>
     <script>
-        (function() {
-            const path = window.location.pathname;
-            const routes = ['dashboard', 'buildings', 'individuals', 'expenses', 'timetable', 'public', 'login'];
-            const parts = path.split('/').filter(Boolean);
-            const idx = parts.findIndex(p => routes.includes(p.toLowerCase()));
-            let base = '/';
-            if (idx > 0) {
-                base = '/' + parts.slice(0, idx).join('/') + '/';
-            } else if (parts.length === 1 && !routes.includes(parts[0].toLowerCase())) {
-                base = '/' + parts[0] + '/';
-            }
-            sessionStorage.setItem('modak_redirect_route', path + window.location.search + window.location.hash);
-            window.location.replace(base);
-        })();
+        // Save the intended route and redirect to root for SPA routing
+        sessionStorage.setItem('modak_redirect_route', window.location.pathname + window.location.search + window.location.hash);
+        window.location.replace('/');
     </script>
 </head>
 <body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #09100e; color: #cbded8;">

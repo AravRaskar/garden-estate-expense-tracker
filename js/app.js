@@ -19,20 +19,6 @@ let currentYear = getCurrentYear();
 let isAuthenticated = false;
 let appInitialized = false;
 
-export function getAppBase() {
-    if (window.location.protocol === 'file:') return '';
-    const routes = ['dashboard', 'buildings', 'individuals', 'expenses', 'timetable', 'public', 'login'];
-    const parts = window.location.pathname.split('/').filter(Boolean);
-    const idx = parts.findIndex(p => routes.includes(p.toLowerCase()) || p.toLowerCase() === 'index.html');
-    if (idx > 0) {
-        return '/' + parts.slice(0, idx).join('/');
-    }
-    if (parts.length === 1 && !routes.includes(parts[0].toLowerCase()) && parts[0].toLowerCase() !== 'index.html') {
-        return '/' + parts[0];
-    }
-    return '';
-}
-
 export function normalizePath(path) {
     if (!path) return '/';
     // Remove query params and hash if included
@@ -50,9 +36,7 @@ export function navigateTo(path) {
     if (window.location.protocol === 'file:') {
         window.location.hash = path.startsWith('/') ? `#${path.slice(1)}` : `#${path}`;
     } else {
-        const base = getAppBase();
-        const cleanRelative = normalizePath(path);
-        const target = base ? `${base}${cleanRelative}` : cleanRelative;
+        const target = normalizePath(path);
         if (normalizePath(window.location.pathname) !== target) {
             history.pushState(null, '', target);
         }
@@ -62,18 +46,13 @@ export function navigateTo(path) {
 window.navigateTo = navigateTo;
 
 export function getCurrentRoute() {
-    const base = getAppBase();
     // 1. Check for 404 fallback redirect stored in sessionStorage
     const redirect = sessionStorage.getItem('modak_redirect_route');
     if (redirect) {
         sessionStorage.removeItem('modak_redirect_route');
-        let clean = normalizePath(redirect);
-        if (base && clean.startsWith(base)) {
-            clean = normalizePath(clean.slice(base.length));
-        }
-        const target = base ? `${base}${clean}` : clean;
-        if (window.location.pathname !== target) {
-            history.replaceState(null, '', target);
+        const clean = normalizePath(redirect);
+        if (window.location.pathname !== clean) {
+            history.replaceState(null, '', clean);
         }
         return clean;
     }
@@ -83,12 +62,8 @@ export function getCurrentRoute() {
         return normalizePath('/' + window.location.hash.slice(1).replace(/^\//, ''));
     }
 
-    // 3. Clean pathname stripped of any repo/app base
-    let path = normalizePath(window.location.pathname);
-    if (base && path.startsWith(base)) {
-        path = normalizePath(path.slice(base.length));
-    }
-    return path;
+    // 3. Clean pathname
+    return normalizePath(window.location.pathname);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -186,12 +161,7 @@ function initAuth() {
             const rawHref = link.getAttribute('href');
             if (rawHref && (rawHref.startsWith('/') || (!rawHref.includes('://') && !rawHref.startsWith('mailto:') && !rawHref.startsWith('tel:') && !rawHref.startsWith('#')))) {
                 e.preventDefault();
-                const base = getAppBase();
-                let clean = rawHref;
-                if (base && clean.startsWith(base)) {
-                    clean = clean.slice(base.length) || '/';
-                }
-                navigateTo(clean);
+                navigateTo(rawHref);
                 return;
             }
         }
@@ -515,8 +485,7 @@ function setupQRFlyerModal() {
         if (window.location.protocol === 'file:') {
             publicUrl = `${window.location.href.split('#')[0]}#public`;
         } else {
-            const base = getAppBase();
-            publicUrl = `${origin}${base}/public`;
+            publicUrl = `${origin}/public`;
         }
 
         // Generate QR Code via high-contrast QR service
