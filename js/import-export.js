@@ -14,6 +14,8 @@ import { icon } from './icons.js';
 let currentImportYear = null;
 let importTabsInitialized = false;
 let excelImportInitialized = false;
+let selectedExcelFile = null;
+let isExcelImporting = false;
 
 /**
  * Open the import modal
@@ -26,6 +28,7 @@ export function openImportModal(year) {
     // Reset state
     document.getElementById('import-sheets-url').value = '';
     document.getElementById('import-file-input').value = '';
+    selectedExcelFile = null;
     hideImportResult();
 
     // Set up tabs (one-time init)
@@ -36,6 +39,7 @@ export function openImportModal(year) {
 
     // Set up Excel import
     setupExcelImport();
+    updateExcelFileSelection();
 
     // Set up template download button
     setupTemplateDownload();
@@ -145,11 +149,13 @@ function setupSheetsImport(year) {
 function setupExcelImport() {
     const dropzone = document.getElementById('import-file-dropzone');
     const fileInput = document.getElementById('import-file-input');
-    if (!dropzone || !fileInput) return;
+    const importButton = document.getElementById('btn-import-selected-file');
+    if (!dropzone || !fileInput || !importButton) return;
 
     if (!excelImportInitialized) {
         excelImportInitialized = true;
-        dropzone.onclick = () => fileInput.click();
+        // Look up the input at click time because the modal may be reopened.
+        dropzone.onclick = () => document.getElementById('import-file-input')?.click();
 
         dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -162,17 +168,41 @@ function setupExcelImport() {
             e.preventDefault();
             dropzone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
-            if (file) handleExcelFile(file, currentImportYear);
+            if (file) selectExcelFile(file);
         });
     }
 
-    // Reset file input to clean listener closures
-    const newInput = fileInput.cloneNode(true);
-    fileInput.parentNode.replaceChild(newInput, fileInput);
-    newInput.addEventListener('change', (e) => {
+    fileInput.onchange = (e) => {
         const file = e.target.files[0];
-        if (file) handleExcelFile(file, currentImportYear);
-    });
+        if (file) selectExcelFile(file);
+    };
+    importButton.onclick = () => {
+        if (selectedExcelFile && !isExcelImporting) {
+            handleExcelFile(selectedExcelFile, currentImportYear);
+        }
+    };
+}
+
+function selectExcelFile(file) {
+    if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
+        showToast('Please choose an .xlsx, .xls, or .csv file', 'error');
+        return;
+    }
+    selectedExcelFile = file;
+    hideImportResult();
+    updateExcelFileSelection();
+}
+
+function updateExcelFileSelection(status = '') {
+    const fileName = document.getElementById('import-selected-file-name');
+    const statusEl = document.getElementById('import-file-status');
+    const importButton = document.getElementById('btn-import-selected-file');
+    if (fileName) fileName.textContent = selectedExcelFile ? selectedExcelFile.name : 'No file selected';
+    if (statusEl) {
+        statusEl.textContent = status;
+        statusEl.hidden = !status;
+    }
+    if (importButton) importButton.disabled = !selectedExcelFile || isExcelImporting;
 }
 
 async function handleExcelFile(file, year) {
@@ -181,12 +211,11 @@ async function handleExcelFile(file, year) {
         return;
     }
 
+    isExcelImporting = true;
     const dropzone = document.getElementById('import-file-dropzone');
-    const originalHTML = dropzone.innerHTML;
-    dropzone.innerHTML = `
-        <div class="dropzone-icon" style="font-size: 2.25rem; color: var(--primary-600);">${icon('download', 'ui-icon-xl')}</div>
-        <div class="dropzone-text">Processing ${escapeHtml(file.name)}...</div>
-    `;
+    dropzone?.classList.add('is-processing');
+    dropzone?.setAttribute('aria-busy', 'true');
+    updateExcelFileSelection(`Reading ${file.name}…`);
 
     try {
         let rows;
@@ -203,7 +232,9 @@ async function handleExcelFile(file, year) {
 
             const ganeshotsavData = parseGaneshotsavExpenseSheet(firstSheet);
             if (ganeshotsavData) {
-                showImportResult(await processGaneshotsavImport(ganeshotsavData, year));
+                const result = await processGaneshotsavImport(ganeshotsavData, year);
+                showImportResult(result);
+                updateExcelFileSelection(result.success ? 'Import complete.' : 'Import could not be completed.');
                 return;
             }
 
@@ -253,12 +284,21 @@ async function handleExcelFile(file, year) {
 
         const result = await processImportRows(rows, year);
         showImportResult(result);
+        updateExcelFileSelection(result.success ? 'Import complete.' : 'Import could not be completed.');
 
     } catch (err) {
         console.error('Excel import error:', err);
         showImportResult({ success: false, message: err.message });
+        updateExcelFileSelection('Import could not be completed.');
     } finally {
-        dropzone.innerHTML = originalHTML;
+        isExcelImporting = false;
+        dropzone?.classList.remove('is-processing');
+        dropzone?.removeAttribute('aria-busy');
+        if (selectedExcelFile === file) selectedExcelFile = null;
+        document.getElementById('import-file-input').value = '';
+        const statusEl = document.getElementById('import-file-status');
+        const completedStatus = statusEl?.textContent || '';
+        updateExcelFileSelection(completedStatus);
     }
 }
 

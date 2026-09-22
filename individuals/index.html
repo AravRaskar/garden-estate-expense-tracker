@@ -388,6 +388,11 @@
                         <div class="dropzone-hint" style="color: var(--primary-700);">Supports .xlsx, .xls, and .csv files</div>
                     </div>
                     <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                    <div class="import-file-selection" aria-live="polite">
+                        <span id="import-selected-file-name">No file selected</span>
+                        <span id="import-file-status" class="import-file-status" hidden></span>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="btn-import-selected-file" disabled>Import selected file</button>
                 </div>
 
                 <!-- Expected Format & Downloadable Template Section -->

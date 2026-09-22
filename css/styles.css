@@ -1694,6 +1694,38 @@ textarea::placeholder {
 .dropzone-icon { font-size: 2.25rem; margin-bottom: 0.5rem; }
 .dropzone-text { color: var(--pine-900); font-weight: 600; font-size: 0.875rem; }
 .dropzone-hint { color: var(--pine-700); font-size: 0.75rem; margin-top: 0.25rem; }
+.file-dropzone.is-processing {
+    cursor: progress;
+    opacity: 0.72;
+    pointer-events: none;
+}
+.file-dropzone.is-processing .dropzone-icon {
+    animation: importPulse 1s ease-in-out infinite;
+}
+.import-file-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.85rem 0;
+    min-height: 2.6rem;
+    color: var(--slate-700);
+    font-size: 0.8125rem;
+}
+#import-selected-file-name {
+    overflow-wrap: anywhere;
+    font-weight: 600;
+}
+.import-file-status {
+    color: var(--pine-700);
+}
+#btn-import-selected-file {
+    width: 100%;
+    justify-content: center;
+}
+
+@keyframes importPulse {
+    50% { transform: scale(1.13); opacity: 0.55; }
+}
 
 .import-result {
     margin-top: 1rem;
