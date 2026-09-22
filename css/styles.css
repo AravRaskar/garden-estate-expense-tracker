@@ -386,12 +386,6 @@ a:hover {
     border-color: #0f543f;
 }
 
-[data-theme="dark"] #btn-autofill-demo {
-    background: #142420 !important;
-    color: #5eead4 !important;
-    border-color: #245548 !important;
-}
-
 [data-theme="dark"] .btn-edit {
     background: #121c19;
     color: #5eead4;

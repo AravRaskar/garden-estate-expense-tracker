@@ -167,6 +167,16 @@ export async function deleteIndividual(id) {
     return data;
 }
 
+export async function bulkUpsertIndividuals(records) {
+    if (!records || records.length === 0) return [];
+    const { data, error } = await getSupabase()
+        .from('individuals')
+        .upsert(records, { onConflict: 'import_key' })
+        .select();
+    if (error) throw error;
+    return data || records;
+}
+
 // ── Expenses CRUD ────────────────────────────
 
 export async function fetchExpenses(year) {
@@ -195,6 +205,16 @@ export async function deleteExpense(id) {
         .eq('id', id);
     if (error) throw error;
     return data;
+}
+
+export async function bulkUpsertExpenses(records) {
+    if (!records || records.length === 0) return [];
+    const { data, error } = await getSupabase()
+        .from('expenses')
+        .upsert(records, { onConflict: 'import_key' })
+        .select();
+    if (error) throw error;
+    return data || records;
 }
 
 // ── Timetables CRUD ──────────────────────────

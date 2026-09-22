@@ -3,7 +3,8 @@
 // ============================================
 
 import {
-    fetchAllBuildingsAndFlats, bulkUpsertDonations, exportAllData
+    fetchAllBuildingsAndFlats, bulkUpsertDonations, bulkUpsertIndividuals,
+    bulkUpsertExpenses, exportAllData
 } from './supabase.js';
 import {
     parseCSV, showToast, matchColumnHeader, normalizeOwnerName, escapeHtml
@@ -199,6 +200,13 @@ async function handleExcelFile(file, year) {
             const workbook = XLSX.read(data, { type: 'array', cellDates: true });
             const firstSheetName = workbook.SheetNames[0];
             const firstSheet = workbook.Sheets[firstSheetName];
+
+            const ganeshotsavData = parseGaneshotsavExpenseSheet(firstSheet);
+            if (ganeshotsavData) {
+                showImportResult(await processGaneshotsavImport(ganeshotsavData, year));
+                return;
+            }
+
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '', raw: false });
 
             // Helper to format values and handle Date objects without UTC off-by-one timezone shift
@@ -252,6 +260,183 @@ async function handleExcelFile(file, year) {
     } finally {
         dropzone.innerHTML = originalHTML;
     }
+}
+
+function parseGaneshotsavExpenseSheet(sheet) {
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+    const labels = rows.flat().filter(value => typeof value === 'string').map(value => value.trim().toLowerCase());
+    if (!labels.includes('detailed expenses') || !labels.includes('mode of payment') || !labels.includes('flat no')) {
+        return null;
+    }
+
+    const result = { donations: [], individuals: [], expenses: [], issues: [] };
+    const contributionBlocks = [
+        { building: 'Lotus', startRow: 6, endRow: 21, startColumn: 0 },
+        { building: 'Blossom', startRow: 6, endRow: 21, startColumn: 4 },
+        { building: 'Orchid', startRow: 6, endRow: 21, startColumn: 8 },
+        { building: 'Sunflower', startRow: 6, endRow: 21, startColumn: 12 },
+        { building: 'May Flower', startRow: 6, endRow: 21, startColumn: 16 },
+        { building: 'Pink Rose', startRow: 27, endRow: 42, startColumn: 0 },
+        { building: 'White Rose', startRow: 27, endRow: 42, startColumn: 4 },
+        { building: 'Red Rose', startRow: 27, endRow: 42, startColumn: 8 },
+        { building: 'Tulip', startRow: 27, endRow: 34, startColumn: 12 },
+    ];
+
+    contributionBlocks.forEach(block => {
+        for (let rowIndex = block.startRow; rowIndex <= block.endRow; rowIndex++) {
+            const row = rows[rowIndex] || [];
+            const flatNumber = row[block.startColumn];
+            const ownerName = textValue(row[block.startColumn + 1]);
+            const amount = positiveAmount(row[block.startColumn + 2]);
+            if (ownerName && amount) {
+                result.donations.push({ building: block.building, flat: flatNumber, ownerName, amount, sourceRow: rowIndex + 1 });
+            } else if (ownerName || amount) {
+                result.issues.push(`Row ${rowIndex + 1}: incomplete contribution in ${block.building}.`);
+            }
+        }
+    });
+
+    for (let rowIndex = 27; rowIndex <= 34; rowIndex++) {
+        const row = rows[rowIndex] || [];
+        const name = textValue(row[17]);
+        const amount = positiveAmount(row[18]);
+        if (name && amount) {
+            result.individuals.push({ name, amount, sourceRow: rowIndex + 1 });
+        } else if (name || amount) {
+            result.issues.push(`Row ${rowIndex + 1}: incomplete individual contribution.`);
+        }
+    }
+
+    for (let rowIndex = 5; rowIndex <= 18; rowIndex++) {
+        const row = rows[rowIndex] || [];
+        const description = textValue(row[22]);
+        const amount = positiveAmount(row[23]);
+        if (description && amount && !['total', 'balance', 'expenses'].includes(description.toLowerCase())) {
+            result.expenses.push({
+                spentOn: description,
+                amount,
+                transactionType: '',
+                dateSpent: null,
+                notes: 'Imported from Major Expense section',
+                sourceRow: rowIndex + 1,
+            });
+        }
+    }
+
+    let activeDate = null;
+    for (let rowIndex = 6; rowIndex < rows.length; rowIndex++) {
+        const row = rows[rowIndex] || [];
+        const rowDate = toIsoDate(row[26]);
+        if (rowDate) activeDate = rowDate;
+        const description = textValue(row[27]);
+        const amount = positiveAmount(row[28]);
+        const transactionType = textValue(row[29]);
+        if (description && amount) {
+            result.expenses.push({
+                spentOn: description,
+                amount,
+                transactionType,
+                dateSpent: activeDate,
+                notes: 'Imported from Detailed Expenses section',
+                sourceRow: rowIndex + 1,
+            });
+        } else if (description || (row[28] !== null && row[28] !== undefined && textValue(row[28]))) {
+            result.issues.push(`Row ${rowIndex + 1}: incomplete detailed expense.`);
+        }
+    }
+
+    return result;
+}
+
+async function processGaneshotsavImport(parsed, year) {
+    const { buildings, flats } = await fetchAllBuildingsAndFlats();
+    const buildingMap = new Map(buildings.map(building => [normalizeBuildingName(building.name), building]));
+    const flatMap = new Map(flats.map(flat => [`${flat.building_id}_${flat.flat_number.toLowerCase()}`, flat]));
+    const donationRecords = [];
+
+    parsed.donations.forEach(entry => {
+        const building = buildingMap.get(normalizeBuildingName(entry.building));
+        const flatNumber = normalizeFlatNumber(entry.flat);
+        const flat = building && flatMap.get(`${building.id}_${flatNumber.toLowerCase()}`);
+        if (!building || !flat) {
+            parsed.issues.push(`Row ${entry.sourceRow}: unknown building or flat.`);
+            return;
+        }
+        donationRecords.push({
+            flat_id: flat.id,
+            building_id: building.id,
+            year,
+            owner_name: normalizeOwnerName(entry.ownerName),
+            donated: true,
+            amount: entry.amount,
+            transaction_type: '',
+            date_given: null,
+        });
+    });
+
+    const individualRecords = parsed.individuals.map(entry => ({
+        year,
+        name: normalizeOwnerName(entry.name),
+        amount: entry.amount,
+        transaction_type: '',
+        date_given: null,
+        notes: 'Imported from Superstars section',
+        import_key: `ganeshotsav-${year}-individual-${entry.sourceRow}`,
+    }));
+    const expenseRecords = parsed.expenses.map(entry => ({
+        year,
+        given_to: null,
+        spent_on: entry.spentOn,
+        amount: entry.amount,
+        transaction_type: entry.transactionType,
+        date_spent: entry.dateSpent,
+        notes: entry.notes,
+        import_key: `ganeshotsav-${year}-expense-${entry.sourceRow}-${entry.notes.includes('Major') ? 'major' : 'detailed'}`,
+    }));
+
+    const [donations, individuals, expenses] = await Promise.all([
+        bulkUpsertDonations(donationRecords),
+        bulkUpsertIndividuals(individualRecords),
+        bulkUpsertExpenses(expenseRecords),
+    ]);
+    window.dispatchEvent(new CustomEvent('data-imported', {
+        detail: { count: donations.length + individuals.length + expenses.length },
+    }));
+
+    return {
+        success: true,
+        message: `Imported ${donations.length} flat contributions, ${individuals.length} individual contributions, and ${expenses.length} expenses for ${year}.`,
+        details: parsed.issues.length ? parsed.issues.slice(0, 5) : null,
+    };
+}
+
+function textValue(value) {
+    return String(value ?? '').trim();
+}
+
+function positiveAmount(value) {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function normalizeBuildingName(value) {
+    return textValue(value).toLowerCase().replace(/\s+/g, ' ');
+}
+
+function toIsoDate(value) {
+    if (value === null || value === undefined || value === '') return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, '0');
+        const day = String(value.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+    if (typeof value === 'number') {
+        const parsed = XLSX.SSF.parse_date_code(value);
+        if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+    const asDate = new Date(value);
+    return Number.isNaN(asDate.getTime()) ? null : asDate.toISOString().slice(0, 10);
 }
 
 /**

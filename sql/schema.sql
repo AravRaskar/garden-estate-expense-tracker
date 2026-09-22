@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS individuals (
     transaction_type TEXT DEFAULT '',
     date_given DATE DEFAULT CURRENT_DATE,
     notes TEXT DEFAULT '',
+    import_key TEXT UNIQUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -55,12 +56,13 @@ CREATE TABLE IF NOT EXISTS individuals (
 CREATE TABLE IF NOT EXISTS expenses (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     year INT NOT NULL,
-    given_to TEXT NOT NULL,
+    given_to TEXT,
     amount DECIMAL(10,2) DEFAULT 0,
     spent_on TEXT NOT NULL,
     transaction_type TEXT DEFAULT '',
     date_spent DATE DEFAULT CURRENT_DATE,
     notes TEXT DEFAULT '',
+    import_key TEXT UNIQUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -102,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_public_portal_access_logs_accessed_at ON public_p
 
 -- Insert 9 buildings
 INSERT INTO buildings (name, display_order) VALUES
-    ('Mayflower', 1),
+    ('May Flower', 1),
     ('Pink Rose', 2),
     ('White Rose', 3),
     ('Red Rose', 4),
