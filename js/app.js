@@ -471,7 +471,7 @@ function updateSidebarActive(route = getCurrentRoute()) {
 }
 
 function setupQRFlyerModal() {
-    const productionOrigin = 'https://gardenestateexpensetracker.vercel.app';
+    const productionOrigin = 'https://modakk.vercel.app';
     const btn = document.getElementById('btn-qr-flyer');
     const overlay = document.getElementById('qr-flyer-modal-overlay');
     const closeBtn = document.getElementById('qr-flyer-modal-close');
