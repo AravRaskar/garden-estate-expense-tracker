@@ -7,6 +7,7 @@ import { formatCurrency, formatDate, escapeHtml, getCurrentYear } from './utils.
 import { icon } from './icons.js';
 
 let publicYear = getCurrentYear();
+let pickerEvents;
 
 export async function renderPublicPortal(container, year = null) {
     if (year) publicYear = year;
@@ -53,11 +54,11 @@ export async function renderPublicPortal(container, year = null) {
                         <p class="text-muted">Select your name to continue. Your selection is recorded for the committee’s access register.</p>
                     </div>
                     <form id="public-access-form" class="public-access-form">
-                        <label for="public-resident-select">Your name</label>
-                        <select id="public-resident-select" class="public-select" required ${residentList.length ? '' : 'disabled'}>
-                            <option value="">${residentList.length ? 'Select your name' : 'Resident names will appear after data is uploaded'}</option>
-                            ${residentList.map((resident, index) => `<option value="${index}">${escapeHtml(resident.label)}</option>`).join('')}
-                        </select>
+                        <label id="public-resident-picker-label">Your name</label>
+                        ${renderSearchablePicker('public-resident', residentList, {
+                            placeholder: 'Search and select your name',
+                            emptyMessage: 'Resident names will appear after data is uploaded'
+                        })}
                         <label class="public-consent"><input type="checkbox" id="public-access-consent" required ${residentList.length ? '' : 'disabled'}><span>I am viewing this as a Garden Estate resident.</span></label>
                         <p id="public-access-error" class="public-access-error" role="alert" hidden></p>
                         <button class="btn btn-primary public-access-submit" type="submit" ${residentList.length ? '' : 'disabled'}>Continue to dashboard ${icon('arrowLeft', 'public-arrow-right')}</button>
@@ -89,7 +90,7 @@ export async function renderPublicPortal(container, year = null) {
                     <section class="public-contributor-section">
                         <div class="contributor-card">
                             <div class="contributor-header"><div class="contributor-icon">${icon('fileText')}</div><div><h2>Confirmed contribution</h2><p class="text-muted text-sm">Select a contributor to view the recorded receipt.</p></div></div>
-                            <div class="form-group"><label for="donor-dropdown">Select a verified contributor</label><select id="donor-dropdown" class="public-select" ${donorList.length ? '' : 'disabled'}><option value="">${donorList.length ? 'Select contributor' : 'No confirmed contributions yet'}</option>${donorList.map((donor, index) => `<option value="${index}">${escapeHtml(donor.label)}</option>`).join('')}</select></div>
+                            <div class="form-group"><label id="donor-picker-label">Select a verified contributor</label>${renderSearchablePicker('donor', donorList, { placeholder: 'Search a contributor', emptyMessage: 'No confirmed contributions yet' })}</div>
                             <div id="verified-receipt-box" class="verified-box" style="display: none;"><div class="verified-badge"><span class="badge-check">${icon('checkCircle')}</span><span>Confirmed Contribution</span></div><div class="verified-grid"><div><span class="v-label">Contributor name</span><h3 id="v-name" class="v-value">—</h3></div><div><span class="v-label">Allocation / unit</span><div id="v-unit" class="v-value">—</div></div><div><span class="v-label">Amount paid</span><div id="v-amount" class="v-amount-highlight">—</div></div><div><span class="v-label">Mode & date</span><div id="v-mode" class="v-value">—</div></div></div></div>
                         </div>
                     </section>
@@ -104,6 +105,8 @@ export async function renderPublicPortal(container, year = null) {
                 <footer class="public-footer"><p>Modak Expense Tracker · Managed by Garden Estate Society Committee</p></footer>
             </div>`;
 
+        pickerEvents?.abort();
+        pickerEvents = new AbortController();
         setupPublicAccessGate(residentList);
         setupDropdownEvents(donorList);
         setupSearchFilter();
@@ -146,6 +149,28 @@ function buildDonorList(donations, individuals) {
     return donors.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function renderSearchablePicker(id, options, { placeholder, emptyMessage }) {
+    const disabled = options.length === 0;
+    const optionMarkup = options.map((option, index) => `
+        <button type="button" class="custom-picker-option" role="option" data-value="${index}" data-search="${escapeHtml(option.label.toLowerCase())}" aria-selected="false">
+            <span>${escapeHtml(option.name)}</span>${option.unit ? `<small>${escapeHtml(option.unit)}</small>` : ''}
+        </button>`).join('');
+
+    return `<div id="${id}-picker" class="custom-picker${disabled ? ' is-disabled' : ''}" aria-labelledby="${id}-picker-label">
+        <input type="hidden" id="${id}-select" value="" ${disabled ? 'disabled' : ''}>
+        <button type="button" class="custom-picker-toggle" aria-haspopup="listbox" aria-expanded="false" aria-controls="${id}-picker-options" ${disabled ? 'disabled' : ''}>
+            <span class="custom-picker-toggle-value">${escapeHtml(disabled ? emptyMessage : placeholder)}</span>
+            <span class="custom-picker-search-button">${icon('search', 'ui-icon-sm')}<span>Search</span></span>
+        </button>
+        <div class="custom-picker-panel" hidden>
+            <label class="sr-only" for="${id}-picker-search">Search names</label>
+            <div class="custom-picker-search-wrap">${icon('search', 'ui-icon-sm')}<input id="${id}-picker-search" type="search" autocomplete="off" placeholder="Type a name or unit"></div>
+            <div id="${id}-picker-options" class="custom-picker-options" role="listbox">${optionMarkup}</div>
+            <p class="custom-picker-empty" hidden>No matching name found.</p>
+        </div>
+    </div>`;
+}
+
 function setupPublicAccessGate(residentList) {
     const form = document.getElementById('public-access-form');
     const select = document.getElementById('public-resident-select');
@@ -154,10 +179,17 @@ function setupPublicAccessGate(residentList) {
     const submitButton = form?.querySelector('button[type="submit"]');
     if (!form || !select || !details) return;
 
+    setupSearchablePicker('public-resident', residentList);
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const resident = residentList[Number(select.value)];
-        if (!resident) return;
+        if (!resident) {
+            error.textContent = 'Please search for and select your name to continue.';
+            error.hidden = false;
+            document.querySelector('#public-resident-picker .custom-picker-toggle')?.focus();
+            return;
+        }
         submitButton.disabled = true;
         error.hidden = true;
         try {
@@ -175,11 +207,11 @@ function setupPublicAccessGate(residentList) {
 }
 
 function setupDropdownEvents(donorList) {
-    const select = document.getElementById('donor-dropdown');
+    const select = document.getElementById('donor-select');
     const box = document.getElementById('verified-receipt-box');
     if (!select || !box) return;
-    select.addEventListener('change', event => {
-        const donor = donorList[Number(event.target.value)];
+    setupSearchablePicker('donor', donorList, value => {
+        const donor = donorList[Number(value)];
         if (!donor) { box.style.display = 'none'; return; }
         document.getElementById('v-name').textContent = donor.name;
         document.getElementById('v-unit').textContent = donor.unit || '—';
@@ -187,6 +219,62 @@ function setupDropdownEvents(donorList) {
         document.getElementById('v-mode').textContent = `${donor.paymentMode || '—'} · ${formatDate(donor.date)}`;
         box.style.display = 'block';
     });
+}
+
+function setupSearchablePicker(id, options, onSelect = () => {}) {
+    const root = document.getElementById(`${id}-picker`);
+    const input = document.getElementById(`${id}-select`);
+    const toggle = root?.querySelector('.custom-picker-toggle');
+    const panel = root?.querySelector('.custom-picker-panel');
+    const search = root?.querySelector('.custom-picker-search-wrap input');
+    const optionButtons = [...(root?.querySelectorAll('.custom-picker-option') || [])];
+    const empty = root?.querySelector('.custom-picker-empty');
+    if (!root || !input || !toggle || !panel || !search || toggle.disabled) return;
+
+    const close = () => {
+        root.classList.remove('is-open');
+        panel.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+    };
+    const open = () => {
+        root.classList.add('is-open');
+        panel.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        search.focus();
+    };
+    const filter = () => {
+        const query = search.value.trim().toLowerCase();
+        let visible = 0;
+        optionButtons.forEach(button => {
+            const matches = (button.dataset.search || '').includes(query);
+            button.hidden = !matches;
+            if (matches) visible += 1;
+        });
+        empty.hidden = visible > 0;
+    };
+    const choose = value => {
+        const selected = options[Number(value)];
+        if (!selected) return;
+        input.value = value;
+        toggle.querySelector('.custom-picker-toggle-value').textContent = selected.label;
+        optionButtons.forEach(button => button.setAttribute('aria-selected', String(button.dataset.value === String(value))));
+        close();
+        onSelect(value);
+    };
+
+    toggle.addEventListener('click', () => (panel.hidden ? open() : close()), { signal: pickerEvents.signal });
+    search.addEventListener('input', filter, { signal: pickerEvents.signal });
+    search.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { close(); toggle.focus(); }
+        if (event.key === 'ArrowDown') { event.preventDefault(); optionButtons.find(button => !button.hidden)?.focus(); }
+    }, { signal: pickerEvents.signal });
+    optionButtons.forEach(button => {
+        button.addEventListener('click', () => choose(button.dataset.value), { signal: pickerEvents.signal });
+        button.addEventListener('keydown', event => {
+            if (event.key === 'Escape') { close(); toggle.focus(); }
+        }, { signal: pickerEvents.signal });
+    });
+    document.addEventListener('click', event => { if (!root.contains(event.target)) close(); }, { signal: pickerEvents.signal });
 }
 
 function setupSearchFilter() {
