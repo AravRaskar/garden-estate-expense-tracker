@@ -217,6 +217,27 @@ export async function bulkUpsertExpenses(records) {
     return data || records;
 }
 
+// Removes only rows created by the structured Ganeshotsav workbook importer.
+// Manually entered records do not have this import-key prefix and are preserved.
+export async function deleteGaneshotsavImportedRows(year) {
+    const prefix = `ganeshotsav-${year}-%`;
+    const [individualsResult, expensesResult] = await Promise.all([
+        getSupabase()
+            .from('individuals')
+            .delete()
+            .eq('year', year)
+            .like('import_key', prefix),
+        getSupabase()
+            .from('expenses')
+            .delete()
+            .eq('year', year)
+            .like('import_key', prefix),
+    ]);
+
+    if (individualsResult.error) throw individualsResult.error;
+    if (expensesResult.error) throw expensesResult.error;
+}
+
 // ── Timetables CRUD ──────────────────────────
 
 export async function fetchTimetables(year) {

@@ -4,7 +4,7 @@
 
 import {
     fetchAllBuildingsAndFlats, bulkUpsertDonations, bulkUpsertIndividuals,
-    bulkUpsertExpenses, exportAllData
+    bulkUpsertExpenses, deleteGaneshotsavImportedRows, exportAllData
 } from './supabase.js';
 import {
     parseCSV, showToast, matchColumnHeader, normalizeOwnerName, escapeHtml
@@ -303,7 +303,9 @@ async function handleExcelFile(file, year) {
 }
 
 function parseGaneshotsavExpenseSheet(sheet) {
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true });
+    // The workbook's used range starts at row 2 because row 1 is blank. Start
+    // explicitly at physical row 1 so the fixed row positions below match Excel.
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true, range: 0 });
     const labels = rows.flat().filter(value => typeof value === 'string').map(value => value.trim().toLowerCase());
     if (!labels.includes('detailed expenses') || !labels.includes('mode of payment') || !labels.includes('flat no')) {
         return null;
@@ -347,22 +349,6 @@ function parseGaneshotsavExpenseSheet(sheet) {
         }
     }
 
-    for (let rowIndex = 5; rowIndex <= 18; rowIndex++) {
-        const row = rows[rowIndex] || [];
-        const description = textValue(row[22]);
-        const amount = positiveAmount(row[23]);
-        if (description && amount && !['total', 'balance', 'expenses'].includes(description.toLowerCase())) {
-            result.expenses.push({
-                spentOn: description,
-                amount,
-                transactionType: '',
-                dateSpent: null,
-                notes: 'Imported from Major Expense section',
-                sourceRow: rowIndex + 1,
-            });
-        }
-    }
-
     let activeDate = null;
     for (let rowIndex = 6; rowIndex < rows.length; rowIndex++) {
         const row = rows[rowIndex] || [];
@@ -371,7 +357,11 @@ function parseGaneshotsavExpenseSheet(sheet) {
         const description = textValue(row[27]);
         const amount = positiveAmount(row[28]);
         const transactionType = textValue(row[29]);
-        if (description && amount) {
+        const isSummaryRow = ['total', 'balance', 'expenses'].includes(description.toLowerCase());
+        // "future" marks planned costs in this workbook; they are not yet
+        // expenditures and must not reduce the current balance.
+        const isFutureExpense = transactionType.toLowerCase() === 'future';
+        if (description && amount && !isSummaryRow && !isFutureExpense) {
             result.expenses.push({
                 spentOn: description,
                 amount,
@@ -431,8 +421,13 @@ async function processGaneshotsavImport(parsed, year) {
         transaction_type: entry.transactionType,
         date_spent: entry.dateSpent,
         notes: entry.notes,
-        import_key: `ganeshotsav-${year}-expense-${entry.sourceRow}-${entry.notes.includes('Major') ? 'major' : 'detailed'}`,
+        import_key: `ganeshotsav-${year}-expense-${entry.sourceRow}-detailed`,
     }));
+
+    // A prior version read this workbook one row out of alignment and also
+    // saved its Major Expense summary as ledger entries. Clear those importer-
+    // owned rows before writing the corrected individual and expense ledgers.
+    await deleteGaneshotsavImportedRows(year);
 
     const [donations, individuals, expenses] = await Promise.all([
         bulkUpsertDonations(donationRecords),
