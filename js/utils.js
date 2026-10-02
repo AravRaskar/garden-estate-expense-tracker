@@ -55,7 +55,10 @@ export function parseCSV(text) {
         const row = {};
         headers.forEach((header, index) => {
             const key = header.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-            row[key] = values[index]?.trim() || '';
+            const value = values[index]?.trim() || '';
+            const mappedKey = matchColumnHeader(header);
+            row[key] = value;
+            if (mappedKey) row[mappedKey] = value;
         });
         rows.push(row);
     }

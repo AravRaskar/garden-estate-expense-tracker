@@ -4,7 +4,7 @@
 
 import {
     fetchAllBuildingsAndFlats, bulkUpsertDonations, bulkUpsertIndividuals,
-    bulkUpsertExpenses, deleteGaneshotsavImportedRows, exportAllData
+    bulkUpsertExpenses, deleteStaleGaneshotsavImportedRows, exportAllData
 } from './supabase.js';
 import {
     parseCSV, showToast, matchColumnHeader, normalizeOwnerName, escapeHtml
@@ -220,7 +220,7 @@ async function handleExcelFile(file, year) {
     try {
         let rows;
 
-        if (file.name.endsWith('.csv')) {
+        if (file.name.toLowerCase().endsWith('.csv')) {
             const text = await file.text();
             rows = parseCSV(text);
         } else {
@@ -229,8 +229,9 @@ async function handleExcelFile(file, year) {
             const workbook = XLSX.read(data, { type: 'array', cellDates: true });
             const firstSheetName = workbook.SheetNames[0];
             const firstSheet = workbook.Sheets[firstSheetName];
-
-            const ganeshotsavData = parseGaneshotsavExpenseSheet(firstSheet);
+            const ganeshotsavData = workbook.SheetNames
+                .map(sheetName => parseGaneshotsavExpenseSheet(workbook.Sheets[sheetName]))
+                .find(Boolean);
             if (ganeshotsavData) {
                 const result = await processGaneshotsavImport(ganeshotsavData, year);
                 showImportResult(result);
@@ -307,7 +308,8 @@ function parseGaneshotsavExpenseSheet(sheet) {
     // explicitly at physical row 1 so the fixed row positions below match Excel.
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true, range: 0 });
     const labels = rows.flat().filter(value => typeof value === 'string').map(value => value.trim().toLowerCase());
-    if (!labels.includes('detailed expenses') || !labels.includes('mode of payment') || !labels.includes('flat no')) {
+    const expectedBuildings = ['lotus', 'blossom', 'orchid', 'sunflower', 'may flower', 'pink rose', 'white rose', 'red rose', 'tulip'];
+    if (!labels.includes('detailed expenses') || !labels.includes('mode of payment') || !labels.includes('flat no') || !expectedBuildings.every(building => labels.includes(building))) {
         return null;
     }
 
@@ -342,7 +344,7 @@ function parseGaneshotsavExpenseSheet(sheet) {
         const row = rows[rowIndex] || [];
         const name = textValue(row[17]);
         const amount = positiveAmount(row[18]);
-        if (name && amount) {
+        if (name && amount && !isSummaryLabel(name)) {
             result.individuals.push({ name, amount, sourceRow: rowIndex + 1 });
         } else if (name || amount) {
             result.issues.push(`Row ${rowIndex + 1}: incomplete individual contribution.`);
@@ -357,7 +359,7 @@ function parseGaneshotsavExpenseSheet(sheet) {
         const description = textValue(row[27]);
         const amount = positiveAmount(row[28]);
         const transactionType = textValue(row[29]);
-        const isSummaryRow = ['total', 'balance', 'expenses'].includes(description.toLowerCase());
+        const isSummaryRow = isSummaryLabel(description);
         // "future" marks planned costs in this workbook; they are not yet
         // expenditures and must not reduce the current balance.
         const isFutureExpense = transactionType.toLowerCase() === 'future';
@@ -379,6 +381,9 @@ function parseGaneshotsavExpenseSheet(sheet) {
 }
 
 async function processGaneshotsavImport(parsed, year) {
+    if (!parsed.donations.length && !parsed.individuals.length && !parsed.expenses.length) {
+        throw new Error('No importable records were found. Check that the selected workbook uses the Ganeshotsav layout.');
+    }
     const { buildings, flats } = await fetchAllBuildingsAndFlats();
     const buildingMap = new Map(buildings.map(building => [normalizeBuildingName(building.name), building]));
     const flatMap = new Map(flats.map(flat => [`${flat.building_id}_${flat.flat_number.toLowerCase()}`, flat]));
@@ -424,23 +429,23 @@ async function processGaneshotsavImport(parsed, year) {
         import_key: `ganeshotsav-${year}-expense-${entry.sourceRow}-detailed`,
     }));
 
-    // A prior version read this workbook one row out of alignment and also
-    // saved its Major Expense summary as ledger entries. Clear those importer-
-    // owned rows before writing the corrected individual and expense ledgers.
-    await deleteGaneshotsavImportedRows(year);
-
-    const [donations, individuals, expenses] = await Promise.all([
-        bulkUpsertDonations(donationRecords),
-        bulkUpsertIndividuals(individualRecords),
-        bulkUpsertExpenses(expenseRecords),
-    ]);
+    // Save the new dataset before removing obsolete importer-owned rows. This
+    // avoids turning a temporary import failure into missing production data.
+    const donations = await bulkUpsertDonations(donationRecords);
+    const individuals = await bulkUpsertIndividuals(individualRecords);
+    const expenses = await bulkUpsertExpenses(expenseRecords);
+    await deleteStaleGaneshotsavImportedRows(
+        year,
+        individualRecords.map(record => record.import_key),
+        expenseRecords.map(record => record.import_key)
+    );
     window.dispatchEvent(new CustomEvent('data-imported', {
         detail: { count: donations.length + individuals.length + expenses.length },
     }));
 
     return {
         success: true,
-        message: `Imported ${donations.length} flat contributions, ${individuals.length} individual contributions, and ${expenses.length} expenses for ${year}.`,
+        message: `Imported ${donations.length} flat contributions, ${individuals.length} individual contributions, and ${expenses.length} expenses for ${year}.${parsed.issues.length ? ` ${parsed.issues.length} incomplete row(s) were skipped.` : ''}`,
         details: parsed.issues.length ? parsed.issues.slice(0, 5) : null,
     };
 }
@@ -450,8 +455,12 @@ function textValue(value) {
 }
 
 function positiveAmount(value) {
-    const amount = Number(value);
+    const amount = Number(String(value ?? '').replace(/[₹,\s]/g, ''));
     return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function isSummaryLabel(value) {
+    return /^(?:grand\s+)?(?:sub\s+)?(?:total|balance|expenses?)\b/i.test(textValue(value));
 }
 
 function normalizeBuildingName(value) {
@@ -524,10 +533,12 @@ async function processImportRows(rows, year) {
         }
 
         // Parse donation data
-        const donatedStr = (row.donated || row.donation_given || row.status || '').toLowerCase();
-        const donated = ['yes', 'true', '1', 'y', 'done', 'paid'].includes(donatedStr);
-
-        const amount = parseFloat(row.amount || row.amount_given || 0) || 0;
+        const donatedValue = row.donated ?? row.donation_given ?? row.status ?? '';
+        const donatedStr = String(donatedValue).trim().toLowerCase();
+        const amount = positiveAmount(row.amount ?? row.amount_given ?? 0) || 0;
+        // A usable amount is a paid contribution when the source does not
+        // provide a separate donated/status column.
+        const donated = donatedStr ? ['yes', 'true', '1', 'y', 'done', 'paid'].includes(donatedStr) : amount > 0;
         const ownerName = normalizeOwnerName(row.owner_name || row.owner || row.name || '');
         const transactionType = row.transaction_type || row.transaction || row.type || row.payment_mode || row.mode || '';
         const dateGiven = row.date_given || row.date || row.date_of_payment || null;

@@ -217,25 +217,41 @@ export async function bulkUpsertExpenses(records) {
     return data || records;
 }
 
-// Removes only rows created by the structured Ganeshotsav workbook importer.
-// Manually entered records do not have this import-key prefix and are preserved.
-export async function deleteGaneshotsavImportedRows(year) {
+// Removes only importer-owned rows that are absent from a successful re-import.
+// Manually entered records have no matching import key and are preserved.
+export async function deleteStaleGaneshotsavImportedRows(year, currentIndividualKeys, currentExpenseKeys) {
     const prefix = `ganeshotsav-${year}-%`;
     const [individualsResult, expensesResult] = await Promise.all([
         getSupabase()
             .from('individuals')
-            .delete()
+            .select('id, import_key')
             .eq('year', year)
             .like('import_key', prefix),
         getSupabase()
             .from('expenses')
-            .delete()
+            .select('id, import_key')
             .eq('year', year)
             .like('import_key', prefix),
     ]);
 
     if (individualsResult.error) throw individualsResult.error;
     if (expensesResult.error) throw expensesResult.error;
+
+    const staleIndividualIds = (individualsResult.data || [])
+        .filter(record => !currentIndividualKeys.includes(record.import_key))
+        .map(record => record.id);
+    const staleExpenseIds = (expensesResult.data || [])
+        .filter(record => !currentExpenseKeys.includes(record.import_key))
+        .map(record => record.id);
+
+    if (staleIndividualIds.length) {
+        const { error } = await getSupabase().from('individuals').delete().in('id', staleIndividualIds);
+        if (error) throw error;
+    }
+    if (staleExpenseIds.length) {
+        const { error } = await getSupabase().from('expenses').delete().in('id', staleExpenseIds);
+        if (error) throw error;
+    }
 }
 
 // ── Timetables CRUD ──────────────────────────
