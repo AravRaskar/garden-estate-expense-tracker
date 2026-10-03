@@ -92,11 +92,14 @@ export function initTheme() {
 
     // Listen to system preference changes if user hasn't explicitly overridden
     if (window.matchMedia) {
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const onSystemThemeChange = (e) => {
             if (!localStorage.getItem('modak_theme')) {
                 setTheme(e.matches ? 'dark' : 'light', false);
             }
-        });
+        };
+        if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', onSystemThemeChange);
+        else mediaQuery.addListener?.(onSystemThemeChange);
     }
 }
 
@@ -136,6 +139,7 @@ function updateThemeToggleUI(theme) {
 }
 
 function initAuth() {
+    setupQRFlyerModal();
     // HTML5 History & Popstate routing
     window.addEventListener('popstate', handleRoute);
     window.addEventListener('hashchange', handleRoute); // backward compatibility
@@ -205,7 +209,6 @@ function initAuth() {
     });
 
     setupLoginForm();
-    setupQRFlyerModal();
     initEasterEggs();
 }
 
@@ -482,7 +485,29 @@ function setupQRFlyerModal() {
 
     if (!btn || !overlay) return;
 
-    btn.addEventListener('click', () => {
+    // The site ships several route-specific HTML shells. Build the flyer copy
+    // here so every route prints the same complete instructions.
+    const instructions = overlay.querySelector('.qr-flyer-instructions');
+    if (instructions && !instructions.querySelector('ol')) {
+        instructions.querySelectorAll('p:not(.qr-url-text)').forEach(paragraph => paragraph.remove());
+        const steps = document.createElement('ol');
+        [
+            'Open your phone camera or QR scanner.',
+            'Scan the code and select your name to enter.',
+            'View confirmed contributions and the detailed expense breakdown.'
+        ].forEach(text => {
+            const item = document.createElement('li');
+            item.textContent = text;
+            steps.appendChild(item);
+        });
+        instructions.insertBefore(steps, urlDisplay);
+        const note = document.createElement('p');
+        note.className = 'qr-flyer-note';
+        note.textContent = 'For Garden Estate residents · Updated by the society committee';
+        instructions.appendChild(note);
+    }
+
+    const refreshFlyer = () => {
         // A QR flyer must be usable away from this computer. When it is made
         // during local development, point it at the live public portal.
         const isLocal = window.location.protocol === 'file:' ||
@@ -493,8 +518,16 @@ function setupQRFlyerModal() {
         // Generate QR Code via high-contrast QR service
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(publicUrl)}&margin=10`;
         
+        printBtn.disabled = true;
+        imgEl.onload = () => { printBtn.disabled = false; };
+        imgEl.onerror = () => { showToast('QR code could not load. Check your connection and try again.', 'error'); };
         imgEl.src = qrApiUrl;
+        if (imgEl.complete && imgEl.naturalWidth > 0) printBtn.disabled = false;
         urlDisplay.textContent = publicUrl;
+    };
+    refreshFlyer();
+    btn.addEventListener('click', () => {
+        refreshFlyer();
         overlay.classList.add('active');
     });
 
@@ -524,6 +557,10 @@ function setupQRFlyerModal() {
     });
 
     printBtn?.addEventListener('click', () => {
+        if (!imgEl.complete || imgEl.naturalWidth === 0) {
+            showToast('Please wait for the QR code to load.', 'info');
+            return;
+        }
         window.print();
     });
 }

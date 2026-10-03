@@ -4,7 +4,8 @@
 
 import {
     fetchAllBuildingsAndFlats, bulkUpsertDonations, bulkUpsertIndividuals,
-    bulkUpsertExpenses, deleteStaleGaneshotsavImportedRows, exportAllData
+    bulkUpsertExpenses, deleteStaleGaneshotsavImportedRows, countYearEntries,
+    clearYearEntries, exportAllData
 } from './supabase.js';
 import {
     parseCSV, showToast, matchColumnHeader, normalizeOwnerName, escapeHtml
@@ -16,6 +17,8 @@ let importTabsInitialized = false;
 let excelImportInitialized = false;
 let selectedExcelFile = null;
 let isExcelImporting = false;
+let isSheetsImporting = false;
+let isClearingYear = false;
 
 /**
  * Open the import modal
@@ -43,6 +46,8 @@ export function openImportModal(year) {
 
     // Set up template download button
     setupTemplateDownload();
+    ensureClearYearMarkup();
+    setupClearYear(year);
 
     // Close handlers
     document.getElementById('import-modal-close').onclick = closeImportModal;
@@ -74,7 +79,120 @@ function setupTemplateDownload() {
 }
 
 function closeImportModal() {
+    if (isExcelImporting || isSheetsImporting || isClearingYear) {
+        showToast('Please wait for the current operation to finish.', 'info');
+        return;
+    }
     document.getElementById('import-modal-overlay').classList.remove('active');
+}
+
+function ensureClearYearMarkup() {
+    if (document.getElementById('import-clear-section')) return;
+    document.querySelector('#import-modal-overlay .modal-body')?.insertAdjacentHTML('beforeend', `
+        <section class="import-clear-section" id="import-clear-section" aria-labelledby="import-clear-title">
+            <h3 id="import-clear-title">Need to undo a wrong import?</h3>
+            <p>Clear all contribution and expense entries for the selected year. This also removes manually entered records for that year. Buildings, flats, timetables, and other years stay untouched.</p>
+            <button type="button" class="btn btn-secondary" id="btn-preview-clear-year">Review entries to clear</button>
+            <div id="import-clear-confirmation" class="import-clear-confirmation" hidden>
+                <p id="import-clear-counts" aria-live="polite"></p>
+                <label for="import-clear-phrase">To confirm, type <strong id="import-clear-required-phrase"></strong></label>
+                <input type="text" id="import-clear-phrase" autocomplete="off" spellcheck="false">
+                <div class="import-clear-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-clear-year">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="btn-confirm-clear-year" disabled>Clear year entries</button>
+                </div>
+            </div>
+            <p id="import-clear-status" class="import-clear-status" role="status" aria-live="polite"></p>
+        </section>`);
+}
+
+function setupClearYear(year) {
+    const preview = document.getElementById('btn-preview-clear-year');
+    const confirmation = document.getElementById('import-clear-confirmation');
+    const counts = document.getElementById('import-clear-counts');
+    const phrase = document.getElementById('import-clear-phrase');
+    const required = document.getElementById('import-clear-required-phrase');
+    const confirm = document.getElementById('btn-confirm-clear-year');
+    const cancel = document.getElementById('btn-cancel-clear-year');
+    const status = document.getElementById('import-clear-status');
+    const expected = `CLEAR ${year}`;
+    let previewCounts = null;
+
+    confirmation.hidden = true;
+    phrase.value = '';
+    confirm.disabled = true;
+    required.textContent = expected;
+    status.textContent = '';
+    preview.disabled = false;
+
+    preview.onclick = async () => {
+        if (isExcelImporting || isSheetsImporting || isClearingYear) return;
+        preview.disabled = true;
+        status.textContent = 'Checking this year’s entries…';
+        try {
+            previewCounts = await countYearEntries(year);
+            const total = Object.values(previewCounts).reduce((sum, count) => sum + count, 0);
+            counts.textContent = `${year}: ${previewCounts.donations} flat contributions, ${previewCounts.individuals} individual contributions, and ${previewCounts.expenses} expenses (${total} entries total). These records will be permanently deleted.`;
+            confirmation.hidden = total === 0;
+            status.textContent = total ? 'Review the counts and type the confirmation phrase below.' : 'There are no entries to clear for this year.';
+            phrase.value = '';
+            confirm.disabled = true;
+        } catch (error) {
+            previewCounts = null;
+            confirmation.hidden = true;
+            status.textContent = `Could not check entries: ${error.message}`;
+        } finally {
+            preview.disabled = false;
+        }
+    };
+
+    phrase.oninput = () => {
+        confirm.disabled = !previewCounts || phrase.value.trim() !== expected || isClearingYear;
+    };
+    cancel.onclick = () => {
+        if (isClearingYear) return;
+        confirmation.hidden = true;
+        phrase.value = '';
+        confirm.disabled = true;
+        previewCounts = null;
+        status.textContent = '';
+    };
+    confirm.onclick = async () => {
+        if (!previewCounts || phrase.value.trim() !== expected || isExcelImporting || isSheetsImporting || isClearingYear) return;
+        isClearingYear = true;
+        confirm.disabled = true;
+        cancel.disabled = true;
+        preview.disabled = true;
+        status.textContent = 'Clearing entries…';
+        let deletionStarted = false;
+        try {
+            const latestCounts = await countYearEntries(year);
+            if (Object.keys(previewCounts).some(table => latestCounts[table] !== previewCounts[table])) {
+                throw new Error('Entry counts changed since your review. Nothing was cleared. Review the latest counts and try again.');
+            }
+            deletionStarted = true;
+            await clearYearEntries(year, message => { status.textContent = message; });
+            confirmation.hidden = true;
+            previewCounts = null;
+            phrase.value = '';
+            selectedExcelFile = null;
+            document.getElementById('import-file-input').value = '';
+            updateExcelFileSelection();
+            hideImportResult();
+            status.textContent = `All contribution and expense entries for ${year} were cleared.`;
+            showToast(status.textContent);
+            window.dispatchEvent(new CustomEvent('data-imported', { detail: { count: 0, year } }));
+        } catch (error) {
+            status.textContent = `Clear stopped: ${error.message}${deletionStarted ? ' Some entries may already have been removed; review counts before retrying.' : ''}`;
+            previewCounts = null;
+            confirmation.hidden = true;
+            showToast('Could not finish clearing entries.', 'error');
+        } finally {
+            isClearingYear = false;
+            cancel.disabled = false;
+            preview.disabled = false;
+        }
+    };
 }
 
 function setupImportTabs() {
@@ -101,6 +219,7 @@ function setupSheetsImport(year) {
     btn.parentNode.replaceChild(newBtn, btn);
 
     newBtn.addEventListener('click', async () => {
+        if (isExcelImporting || isSheetsImporting || isClearingYear) return;
         const url = document.getElementById('import-sheets-url').value.trim();
         if (!url) {
             showToast('Please enter a Google Sheets URL', 'error');
@@ -114,6 +233,7 @@ function setupSheetsImport(year) {
             return;
         }
 
+        isSheetsImporting = true;
         newBtn.disabled = true;
         newBtn.textContent = 'Importing...';
 
@@ -140,6 +260,7 @@ function setupSheetsImport(year) {
             console.error('Sheets import error:', err);
             showImportResult({ success: false, message: err.message });
         } finally {
+            isSheetsImporting = false;
             newBtn.disabled = false;
             newBtn.textContent = 'Import from Sheets';
         }
@@ -206,6 +327,7 @@ function updateExcelFileSelection(status = '') {
 }
 
 async function handleExcelFile(file, year) {
+    if (isSheetsImporting || isClearingYear || isExcelImporting) return;
     if (!file.name.match(/\.(xlsx|xls|csv)$/i)) {
         showToast('Please upload an .xlsx, .xls, or .csv file', 'error');
         return;

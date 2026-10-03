@@ -2,11 +2,12 @@
 // Dashboard / Analytics Module (Chart.js Interactive)
 // ============================================
 
-import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses, fetchPublicPortalAccessLogs, fetchPublicPortalEvents } from './supabase.js';
+import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses, fetchPublicPortalAccessLogs, fetchPublicPortalResidentVisitCount, fetchPublicPortalResidentActivity } from './supabase.js';
 import { formatCurrency, getBuildingIcon, getProgressColor, escapeHtml } from './utils.js';
 import { icon } from './icons.js';
 
 let chartInstances = {};
+let closePublicActivityModal = null;
 
 export function destroyCharts() {
     Object.values(chartInstances).forEach(c => {
@@ -18,6 +19,7 @@ export function destroyCharts() {
 export async function renderDashboard(container, year) {
     // Destroy previous chart instances if re-rendering
     destroyCharts();
+    closePublicActivityModal?.();
 
     container.innerHTML = `
         <div class="page-enter">
@@ -29,15 +31,14 @@ export async function renderDashboard(container, year) {
     `;
 
     try {
-        const [buildings, donations, individuals, expenses, publicPortalAccessLogs, publicPortalEventsResult] = await Promise.all([
+        const [buildings, donations, individuals, expenses, publicPortalAccessResult] = await Promise.all([
             fetchBuildings(),
             fetchAllDonations(year),
             fetchIndividuals(year),
             fetchExpenses(year),
-            fetchPublicPortalAccessLogs().catch(() => []),
-            fetchPublicPortalEvents().then(data => ({ data, error: null })).catch(error => ({ data: [], error }))
+            fetchPublicPortalAccessLogs().then(data => ({ data, error: null })).catch(error => ({ data: [], error }))
         ]);
-        const publicPortalEvents = publicPortalEventsResult.data;
+        const publicResidents = groupPublicResidentAccess(publicPortalAccessResult.data);
 
         const buildingCollection = donations.reduce((sum, d) => sum + (d.donated ? parseFloat(d.amount) || 0 : 0), 0);
         const individualCollection = individuals.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
@@ -198,33 +199,26 @@ export async function renderDashboard(container, year) {
                     <div class="section-heading" style="margin-bottom: 1rem;">
                         <div>
                             <h2 style="font-size: 1.1rem;">${icon('user')} Public dashboard access</h2>
-                            <p class="text-muted text-sm">Most recent residents who opened the public financial dashboard.</p>
+                            <p class="text-muted text-sm">One row per resident. Select a name to see their recorded activity.</p>
                         </div>
                     </div>
-                    ${publicPortalAccessLogs.length ? `
+                    ${publicPortalAccessResult.error ? '<p class="text-muted text-sm">Public access history is unavailable right now.</p>' : publicResidents.length ? `
                         <div class="flats-table-wrapper">
-                            <table class="flats-table">
-                                <thead><tr><th>Selected resident</th><th>Unit</th><th>Accessed</th></tr></thead>
+                            <table class="flats-table public-resident-activity-table">
+                                <thead><tr><th>Resident</th><th>Unit</th><th>Recent visits</th><th>Last visit</th></tr></thead>
                                 <tbody>
-                                    ${publicPortalAccessLogs.map(log => `
+                                    ${publicResidents.map((resident, index) => `
                                         <tr>
-                                            <td style="font-weight: 600;">${escapeHtml(log.selected_name)}</td>
-                                            <td>${escapeHtml(log.selected_unit || '—')}</td>
-                                            <td class="text-muted">${formatAccessDate(log.accessed_at)}</td>
+                                            <td><button type="button" class="public-resident-activity-link" data-resident-index="${index}" aria-label="View activity for ${escapeHtml(resident.name)}">${escapeHtml(resident.name)}</button></td>
+                                            <td>${escapeHtml(resident.unit || '—')}</td>
+                                            <td>${resident.recentVisits}</td>
+                                            <td class="text-muted">${formatAccessDate(resident.lastAccessedAt)}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
                             </table>
                         </div>
                     ` : '<p class="text-muted text-sm">No public dashboard access has been recorded yet.</p>'}
-                    <h3 style="font-size: 1rem; margin: 1.5rem 0 0.75rem;">Recent public interactions</h3>
-                    ${publicPortalEventsResult.error ? '<p class="text-muted text-sm">Interaction log is unavailable. Apply the public portal events database migration and refresh.</p>' : publicPortalEvents.length ? `<div class="flats-table-wrapper"><table class="flats-table"><thead><tr><th>Resident</th><th>Action</th><th>Details</th><th>When</th></tr></thead><tbody>${publicPortalEvents.map(event => `
-                        <tr>
-                            <td>${escapeHtml(event.public_portal_access_logs?.selected_name || event.later_selected_name || 'Before selection')}</td>
-                            <td>${escapeHtml(formatPublicEventType(event.event_type))}</td>
-                            <td>${escapeHtml(formatPublicEventDetails(event.details))}</td>
-                            <td class="text-muted">${formatAccessDate(event.occurred_at)}</td>
-                        </tr>`).join('')}</tbody></table></div>` : '<p class="text-muted text-sm">No public interactions have been recorded yet.</p>'}
                 </section>
             </div>
         `;
@@ -251,10 +245,106 @@ export async function renderDashboard(container, year) {
             });
         });
 
+        container.querySelectorAll('.public-resident-activity-link').forEach(button => {
+            button.addEventListener('click', () => {
+                const resident = publicResidents[Number(button.dataset.residentIndex)];
+                if (resident) openPublicResidentActivity(resident, button);
+            });
+        });
+
     } catch (err) {
         console.error('Dashboard error:', err);
         container.innerHTML = `<div class="empty-state"><h3>Failed to load dashboard</h3><p>${escapeHtml(err.message)}</p></div>`;
     }
+}
+
+function groupPublicResidentAccess(logs) {
+    const residents = new Map();
+    for (const log of logs) {
+        const key = `${log.selected_contributor_type}:${log.selected_contributor_id}`;
+        if (!residents.has(key)) {
+            residents.set(key, {
+                type: log.selected_contributor_type,
+                id: log.selected_contributor_id,
+                name: log.selected_name,
+                unit: log.selected_unit,
+                lastAccessedAt: log.accessed_at,
+                recentVisits: 0
+            });
+        }
+        residents.get(key).recentVisits += 1;
+    }
+    return [...residents.values()];
+}
+
+function openPublicResidentActivity(resident, trigger) {
+    closePublicActivityModal?.();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay active public-activity-overlay';
+    overlay.innerHTML = `
+        <div class="modal public-activity-modal" role="dialog" aria-modal="true" aria-labelledby="public-activity-title">
+            <div class="modal-header">
+                <div><p class="public-activity-eyebrow">Public dashboard activity</p><h2 id="public-activity-title">${escapeHtml(resident.name)}</h2><p class="text-muted text-sm">${escapeHtml(resident.unit || 'Individual contributor')}</p></div>
+                <button type="button" class="modal-close" aria-label="Close activity history">×</button>
+            </div>
+            <div class="modal-body">
+                <p class="public-activity-summary" id="public-activity-summary" aria-live="polite">Loading visits and actions…</p>
+                <ol class="public-activity-list" id="public-activity-list"></ol>
+                <p class="public-activity-status" id="public-activity-status" role="status" aria-live="polite"></p>
+                <button type="button" class="btn btn-secondary public-activity-more" id="public-activity-more" hidden>Load older actions</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => {
+        window.removeEventListener('keydown', onKeyDown);
+        overlay.remove();
+        closePublicActivityModal = null;
+        if (trigger.isConnected) trigger.focus();
+    };
+    const onKeyDown = event => { if (event.key === 'Escape') close(); };
+    closePublicActivityModal = close;
+    window.addEventListener('keydown', onKeyDown);
+    overlay.querySelector('.modal-close').addEventListener('click', close);
+    overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+    overlay.querySelector('.modal-close').focus();
+
+    const summary = overlay.querySelector('#public-activity-summary');
+    const list = overlay.querySelector('#public-activity-list');
+    const status = overlay.querySelector('#public-activity-status');
+    const more = overlay.querySelector('#public-activity-more');
+    let offset = 0;
+    let loading = false;
+
+    const loadPage = async () => {
+        if (loading || !overlay.isConnected) return;
+        loading = true;
+        more.disabled = true;
+        status.textContent = offset ? 'Loading older actions…' : 'Loading activity…';
+        try {
+            const { events, hasMore } = await fetchPublicPortalResidentActivity(resident, offset);
+            if (!overlay.isConnected) return;
+            list.insertAdjacentHTML('beforeend', events.map(event => `
+                <li class="public-activity-item">
+                    <div><strong>${escapeHtml(formatPublicEventType(event.event_type))}</strong><time datetime="${escapeHtml(event.occurred_at)}">${formatAccessDate(event.occurred_at)}</time></div>
+                    <p>${escapeHtml(formatPublicEventDetails(event.details))}</p>
+                </li>`).join(''));
+            offset += events.length;
+            more.hidden = !hasMore;
+            status.textContent = offset ? `${offset} ${offset === 1 ? 'action' : 'actions'} shown` : 'No interactions have been recorded for this resident.';
+        } catch (error) {
+            console.error('Failed to load resident activity:', error);
+            status.textContent = 'Could not load activity. Please try again later.';
+        } finally {
+            loading = false;
+            more.disabled = false;
+        }
+    };
+    more.addEventListener('click', loadPage);
+    fetchPublicPortalResidentVisitCount(resident)
+        .then(count => { if (overlay.isConnected) summary.textContent = `${count} ${count === 1 ? 'visit' : 'visits'} recorded · Last visit ${formatAccessDate(resident.lastAccessedAt)}`; })
+        .catch(() => { if (overlay.isConnected) summary.textContent = `Last visit ${formatAccessDate(resident.lastAccessedAt)}`; });
+    loadPage();
 }
 
 function formatAccessDate(value) {

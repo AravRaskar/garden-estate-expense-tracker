@@ -254,6 +254,34 @@ export async function deleteStaleGaneshotsavImportedRows(year, currentIndividual
     }
 }
 
+// Clears only the selected year's collection and expense entries. Buildings,
+// flats, timetables, and other years are deliberately outside this operation.
+export async function countYearEntries(year) {
+    const tables = ['donations', 'individuals', 'expenses'];
+    const results = await Promise.all(tables.map(table =>
+        getSupabase().from(table).select('id', { count: 'exact', head: true }).eq('year', year)
+    ));
+    results.forEach((result, index) => {
+        if (result.error) throw new Error(`Could not count ${tables[index]}: ${result.error.message}`);
+    });
+    return Object.fromEntries(tables.map((table, index) => [table, results[index].count ?? 0]));
+}
+
+export async function clearYearEntries(year, onProgress = () => {}) {
+    if (!Number.isInteger(year) || year < 2000 || year > 9999) throw new Error('Invalid year.');
+    if (!await getSession()) throw new Error('Your admin session has expired. Sign in again.');
+    const tables = ['expenses', 'individuals', 'donations'];
+    for (const table of tables) {
+        onProgress(`Clearing ${table} for ${year}…`);
+        const { error } = await getSupabase().from(table).delete().eq('year', year);
+        if (error) throw new Error(`Could not clear ${table}: ${error.message}`);
+    }
+    const remaining = await countYearEntries(year);
+    if (Object.values(remaining).some(count => count > 0)) {
+        throw new Error('Some entries remain. Refresh and try again.');
+    }
+}
+
 // ── Timetables CRUD ──────────────────────────
 
 export async function fetchTimetables(year) {
@@ -334,15 +362,37 @@ export async function fetchPublicPortalEvents(limit = 30) {
     });
 }
 
-export async function fetchPublicPortalAccessLogs(limit = 12) {
+export async function fetchPublicPortalAccessLogs(limit = 500) {
     const { data, error } = await getSupabase()
         .from('public_portal_access_logs')
-        .select('id, selected_name, selected_unit, accessed_at')
+        .select('id, selected_contributor_type, selected_contributor_id, selected_name, selected_unit, accessed_at')
         .order('accessed_at', { ascending: false })
         .limit(limit);
 
     if (error) throw error;
     return data || [];
+}
+
+export async function fetchPublicPortalResidentVisitCount(resident) {
+    const { count, error } = await getSupabase()
+        .from('public_portal_access_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('selected_contributor_type', resident.type)
+        .eq('selected_contributor_id', resident.id);
+    if (error) throw error;
+    return count ?? 0;
+}
+
+export async function fetchPublicPortalResidentActivity(resident, offset = 0, pageSize = 50) {
+    const { data, error } = await getSupabase()
+        .from('public_portal_events')
+        .select('id, event_type, details, occurred_at, public_portal_access_logs!inner(selected_contributor_type, selected_contributor_id)')
+        .eq('public_portal_access_logs.selected_contributor_type', resident.type)
+        .eq('public_portal_access_logs.selected_contributor_id', resident.id)
+        .order('occurred_at', { ascending: false })
+        .range(offset, offset + pageSize);
+    if (error) throw error;
+    return { events: (data || []).slice(0, pageSize), hasMore: (data || []).length > pageSize };
 }
 
 export async function saveTimetable(record) {
