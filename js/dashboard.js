@@ -2,7 +2,7 @@
 // Dashboard / Analytics Module (Chart.js Interactive)
 // ============================================
 
-import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses, fetchPublicPortalAccessLogs } from './supabase.js';
+import { fetchBuildings, fetchAllDonations, fetchIndividuals, fetchExpenses, fetchPublicPortalAccessLogs, fetchPublicPortalEvents } from './supabase.js';
 import { formatCurrency, getBuildingIcon, getProgressColor, escapeHtml } from './utils.js';
 import { icon } from './icons.js';
 
@@ -29,13 +29,15 @@ export async function renderDashboard(container, year) {
     `;
 
     try {
-        const [buildings, donations, individuals, expenses, publicPortalAccessLogs] = await Promise.all([
+        const [buildings, donations, individuals, expenses, publicPortalAccessLogs, publicPortalEventsResult] = await Promise.all([
             fetchBuildings(),
             fetchAllDonations(year),
             fetchIndividuals(year),
             fetchExpenses(year),
-            fetchPublicPortalAccessLogs().catch(() => [])
+            fetchPublicPortalAccessLogs().catch(() => []),
+            fetchPublicPortalEvents().then(data => ({ data, error: null })).catch(error => ({ data: [], error }))
         ]);
+        const publicPortalEvents = publicPortalEventsResult.data;
 
         const buildingCollection = donations.reduce((sum, d) => sum + (d.donated ? parseFloat(d.amount) || 0 : 0), 0);
         const individualCollection = individuals.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
@@ -215,6 +217,14 @@ export async function renderDashboard(container, year) {
                             </table>
                         </div>
                     ` : '<p class="text-muted text-sm">No public dashboard access has been recorded yet.</p>'}
+                    <h3 style="font-size: 1rem; margin: 1.5rem 0 0.75rem;">Recent public interactions</h3>
+                    ${publicPortalEventsResult.error ? '<p class="text-muted text-sm">Interaction log is unavailable. Apply the public portal events database migration and refresh.</p>' : publicPortalEvents.length ? `<div class="flats-table-wrapper"><table class="flats-table"><thead><tr><th>Resident</th><th>Action</th><th>Details</th><th>When</th></tr></thead><tbody>${publicPortalEvents.map(event => `
+                        <tr>
+                            <td>${escapeHtml(event.public_portal_access_logs?.selected_name || event.later_selected_name || 'Before selection')}</td>
+                            <td>${escapeHtml(formatPublicEventType(event.event_type))}</td>
+                            <td>${escapeHtml(formatPublicEventDetails(event.details))}</td>
+                            <td class="text-muted">${formatAccessDate(event.occurred_at)}</td>
+                        </tr>`).join('')}</tbody></table></div>` : '<p class="text-muted text-sm">No public interactions have been recorded yet.</p>'}
                 </section>
             </div>
         `;
@@ -257,6 +267,38 @@ function formatAccessDate(value) {
         hour: 'numeric',
         minute: '2-digit'
     });
+}
+
+function formatPublicEventType(type) {
+    const names = {
+        resident_picker_open: 'Opened name list',
+        resident_picker_search: 'Searched resident names',
+        resident_selected: 'Selected name',
+        consent_changed: 'Changed consent',
+        dashboard_opened: 'Opened dashboard',
+        donor_picker_open: 'Opened receipt list',
+        donor_picker_search: 'Searched receipts',
+        receipt_opened: 'Viewed receipt',
+        expense_search: 'Searched expenses',
+        expense_category_opened: 'Opened expense category',
+        expense_category_closed: 'Closed expense category',
+        contributor_search: 'Searched contributors',
+        timetable_opened: 'Opened timetable',
+        theme_changed: 'Changed theme'
+    };
+    return names[type] || type.replace(/_/g, ' ');
+}
+
+function formatPublicEventDetails(details) {
+    if (!details || typeof details !== 'object') return '—';
+    if (details.category) return details.category;
+    if (details.contributor) return details.contributor;
+    if (details.title) return details.title;
+    if (details.query !== undefined) return details.query ? `“${details.query}” · ${details.results ?? 0} found` : 'Search cleared';
+    if (details.accepted !== undefined) return details.accepted ? 'Accepted' : 'Unchecked';
+    if (details.theme) return details.theme;
+    if (details.residentType) return details.residentType === 'individual' ? 'Individual contributor' : 'Building resident';
+    return '—';
 }
 
 function initCharts({ totalCollection, totalExpenses, buildingStats, individualCollection, expenseCategoryMap, txModeMap }) {

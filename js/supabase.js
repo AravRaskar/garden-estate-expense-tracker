@@ -280,9 +280,11 @@ function getPublicPortalVisitorId() {
 }
 
 export async function recordPublicPortalAccess(selection) {
+    const accessLogId = crypto.randomUUID();
     const { error } = await getSupabase()
         .from('public_portal_access_logs')
         .insert({
+            id: accessLogId,
             visitor_id: getPublicPortalVisitorId(),
             selected_contributor_type: selection.type,
             selected_contributor_id: selection.id,
@@ -291,6 +293,45 @@ export async function recordPublicPortalAccess(selection) {
         });
 
     if (error) throw error;
+    return accessLogId;
+}
+
+export async function recordPublicPortalEvent(eventType, details = {}, accessLogId = null) {
+    const { error } = await getSupabase()
+        .from('public_portal_events')
+        .insert({
+            visitor_id: getPublicPortalVisitorId(),
+            access_log_id: accessLogId,
+            event_type: eventType,
+            details
+        });
+    if (error) throw error;
+}
+
+export async function fetchPublicPortalEvents(limit = 30) {
+    const { data, error } = await getSupabase()
+        .from('public_portal_events')
+        .select('id, visitor_id, event_type, details, occurred_at, public_portal_access_logs ( selected_name, selected_unit )')
+        .order('occurred_at', { ascending: false })
+        .limit(limit);
+    if (error) throw error;
+    const events = data || [];
+    const pendingVisitorIds = [...new Set(events.filter(event => !event.public_portal_access_logs).map(event => event.visitor_id))];
+    if (!pendingVisitorIds.length) return events;
+
+    const { data: selections, error: selectionError } = await getSupabase()
+        .from('public_portal_access_logs')
+        .select('visitor_id, selected_name, accessed_at')
+        .in('visitor_id', pendingVisitorIds)
+        .order('accessed_at', { ascending: true });
+    if (selectionError) throw selectionError;
+    return events.map(event => {
+        if (event.public_portal_access_logs) return event;
+        const selection = (selections || []).find(log =>
+            log.visitor_id === event.visitor_id && new Date(log.accessed_at) >= new Date(event.occurred_at)
+        );
+        return { ...event, later_selected_name: selection?.selected_name || null };
+    });
 }
 
 export async function fetchPublicPortalAccessLogs(limit = 12) {

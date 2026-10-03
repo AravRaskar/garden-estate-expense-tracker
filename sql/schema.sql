@@ -88,6 +88,21 @@ CREATE TABLE IF NOT EXISTS public_portal_access_logs (
     accessed_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS public_portal_events (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    visitor_id UUID NOT NULL,
+    access_log_id UUID REFERENCES public_portal_access_logs(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN (
+        'resident_picker_open', 'resident_picker_search', 'resident_selected',
+        'consent_changed', 'dashboard_opened', 'donor_picker_open',
+        'donor_picker_search', 'receipt_opened', 'expense_search',
+        'expense_category_opened', 'expense_category_closed',
+        'contributor_search', 'timetable_opened', 'theme_changed'
+    )),
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_donations_year ON donations(year);
 CREATE INDEX IF NOT EXISTS idx_donations_building_year ON donations(building_id, year);
@@ -97,6 +112,8 @@ CREATE INDEX IF NOT EXISTS idx_individuals_year ON individuals(year);
 CREATE INDEX IF NOT EXISTS idx_expenses_year ON expenses(year);
 CREATE INDEX IF NOT EXISTS idx_timetables_year ON timetables(year);
 CREATE INDEX IF NOT EXISTS idx_public_portal_access_logs_accessed_at ON public_portal_access_logs(accessed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_public_portal_events_occurred_at ON public_portal_events(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_public_portal_events_access_log_id ON public_portal_events(access_log_id);
 
 -- ============================================
 -- Seed Data
@@ -148,6 +165,7 @@ ALTER TABLE individuals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timetables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public_portal_access_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public_portal_events ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if re-running
 DROP POLICY IF EXISTS "Public read buildings" ON buildings;
@@ -158,6 +176,8 @@ DROP POLICY IF EXISTS "Public read expenses" ON expenses;
 DROP POLICY IF EXISTS "Public read timetables" ON timetables;
 DROP POLICY IF EXISTS "Public insert public portal access logs" ON public_portal_access_logs;
 DROP POLICY IF EXISTS "Authenticated read public portal access logs" ON public_portal_access_logs;
+DROP POLICY IF EXISTS "Public insert public portal events" ON public_portal_events;
+DROP POLICY IF EXISTS "Authenticated read public portal events" ON public_portal_events;
 
 -- Drop existing write policies
 DROP POLICY IF EXISTS "Public write donations" ON donations;
@@ -178,6 +198,8 @@ CREATE POLICY "Public read expenses" ON expenses FOR SELECT USING (true);
 CREATE POLICY "Public read timetables" ON timetables FOR SELECT USING (true);
 CREATE POLICY "Public insert public portal access logs" ON public_portal_access_logs FOR INSERT WITH CHECK (true);
 CREATE POLICY "Authenticated read public portal access logs" ON public_portal_access_logs FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Public insert public portal events" ON public_portal_events FOR INSERT WITH CHECK (true);
+CREATE POLICY "Authenticated read public portal events" ON public_portal_events FOR SELECT TO authenticated USING (true);
 
 -- Create Authenticated Write Policies (Admin Only — requires valid session)
 CREATE POLICY "Authenticated users write donations" ON donations FOR ALL TO authenticated USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');

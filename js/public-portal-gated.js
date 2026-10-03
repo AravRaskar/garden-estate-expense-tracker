@@ -2,15 +2,63 @@
 // Public Portal Module: QR Code Accessible
 // ============================================
 
-import { fetchExpenses, fetchTimetables, getSupabase, recordPublicPortalAccess } from './supabase.js';
+import { fetchExpenses, fetchTimetables, getSupabase, recordPublicPortalAccess, recordPublicPortalEvent } from './supabase.js';
 import { formatCurrency, formatDate, escapeHtml, getCurrentYear } from './utils.js';
 import { icon } from './icons.js';
 
 let publicYear = getCurrentYear();
 let pickerEvents;
+let publicAccessLogId = null;
+
+function logPublicEvent(eventType, details = {}) {
+    recordPublicPortalEvent(eventType, { year: publicYear, ...details }, publicAccessLogId)
+        .catch(error => console.error('Unable to record public interaction:', error));
+}
+
+function getExpenseCategory(expense) {
+    const purpose = String(expense.spent_on || '').toLowerCase();
+    if (/mandap|stage|decor|paint|cloud|light|bulb|bamboo|rope|wire|hardware|weld|spray|tape|zip tie|scissor|staple|s.utli|ladder|flag/.test(purpose)) return 'Setup & decorations';
+    if (/murti|idol|ganpati|ganesh|puja|pujan|guruji|prasad|haar|flower|durva|naral|dhoop|shreefal|pedhe|chiki|matka/.test(purpose)) return 'Worship & offerings';
+    if (/game|prize|treasure hunt|lucky draw|toy/.test(purpose)) return 'Games & prizes';
+    if (/bhandara|food|snack|tea|chai|breakfast|sweets|ghee|masale|water|aqua|chocolate/.test(purpose)) return 'Food & refreshments';
+    if (/sound|music|speaker|electronic|fuel|transport|porter|labour|labor/.test(purpose)) return 'Sound & transport';
+    return 'Other expenses';
+}
+
+function groupExpenses(expenses) {
+    const groups = new Map();
+    expenses.forEach(expense => {
+        const name = getExpenseCategory(expense);
+        if (!groups.has(name)) groups.set(name, []);
+        groups.get(name).push(expense);
+    });
+    return [...groups].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function renderExpenseCategories(expenses) {
+    return groupExpenses(expenses).map(([category, items], index) => {
+        const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+        return `<div class="public-expense-category" data-category="${escapeHtml(category)}">
+            <button type="button" class="public-expense-category-toggle" aria-expanded="false" aria-controls="public-expense-category-${index}">
+                <span class="public-expense-category-name">${escapeHtml(category)}<small>${items.length} ${items.length === 1 ? 'expense' : 'expenses'}</small></span>
+                <span class="public-expense-category-total">${formatCurrency(total)}</span>
+                <span class="public-expense-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div id="public-expense-category-${index}" class="public-expense-category-panel" hidden>
+                ${items.map(expense => `<article class="public-expense-row" data-search="${escapeHtml(`${expense.spent_on || ''} ${expense.given_to || ''} ${expense.transaction_type || ''}`.toLowerCase())}">
+                    <div><span class="expense-label">Purpose</span><strong>${escapeHtml(expense.spent_on || '—')}</strong></div>
+                    <div><span class="expense-label">Paid to</span><strong>${escapeHtml(expense.given_to || '—')}</strong></div>
+                    <div class="public-expense-amount"><span class="expense-label">Amount</span><strong>${formatCurrency(expense.amount)}</strong></div>
+                    <div class="public-expense-meta">${escapeHtml(expense.transaction_type || 'Payment mode not recorded')} · ${formatDate(expense.date_spent)}</div>
+                </article>`).join('')}
+            </div>
+        </div>`;
+    }).join('');
+}
 
 export async function renderPublicPortal(container, year = null) {
     if (year) publicYear = year;
+    publicAccessLogId = null;
     container.innerHTML = '<div class="public-portal page-enter"><div class="loading-spinner"><div class="spinner-ring"></div></div></div>';
 
     try {
@@ -26,7 +74,10 @@ export async function renderPublicPortal(container, year = null) {
         const donations = allDonations || [];
         const individualRecords = individuals || [];
         const paidDonations = donations.filter(donation => donation.donated);
-        const paidIndividuals = individualRecords.filter(individual => (individual.name || '').trim());
+        const paidIndividuals = individualRecords.filter(individual => {
+            const name = (individual.name || '').trim();
+            return name && !isSummaryName(name);
+        });
         const residentList = buildResidentList(donations, individualRecords);
         const donorList = buildDonorList(paidDonations, paidIndividuals);
         const buildingCollection = paidDonations.reduce((sum, donation) => sum + (parseFloat(donation.amount) || 0), 0);
@@ -51,7 +102,7 @@ export async function renderPublicPortal(container, year = null) {
                     <div>
                         <p class="public-eyebrow">Resident access</p>
                         <h2 id="public-access-title">View the society fund dashboard</h2>
-                        <p class="text-muted">Select your name to continue. Your selection is recorded for the committee’s access register.</p>
+                        <p class="text-muted">Select your name to continue. The committee records your selection and public dashboard interactions.</p>
                     </div>
                     <form id="public-access-form" class="public-access-form">
                         <label id="public-resident-picker-label">Your name</label>
@@ -78,13 +129,7 @@ export async function renderPublicPortal(container, year = null) {
 
                     <section class="public-expenses-section" aria-labelledby="public-expenses-title">
                         <div class="section-heading"><div><p class="public-eyebrow">Transparency ledger</p><h2 id="public-expenses-title">Expense detail</h2></div><div class="public-expense-total">${formatCurrency(totalExpenses)} <span>Total spent</span></div></div>
-                        ${expenses.length ? `<div class="public-expense-list">${expenses.map(expense => `
-                            <article class="public-expense-row">
-                                <div><span class="expense-label">Paid to</span><strong>${escapeHtml(expense.given_to || '—')}</strong></div>
-                                <div><span class="expense-label">Purpose</span><strong>${escapeHtml(expense.spent_on || '—')}</strong></div>
-                                <div class="public-expense-amount"><span class="expense-label">Amount</span><strong>${formatCurrency(expense.amount)}</strong></div>
-                                <div class="public-expense-meta">${escapeHtml(expense.transaction_type || '—')} · ${formatDate(expense.date_spent)}</div>
-                            </article>`).join('')}</div>` : '<p class="public-empty-note">No expenses have been recorded for this year.</p>'}
+                        ${expenses.length ? `<div class="public-expense-search"><label for="public-expense-search">Find an expense</label><div class="public-search-field">${icon('search', 'ui-icon-sm')}<input id="public-expense-search" type="search" placeholder="Search purpose, recipient or payment mode" autocomplete="off"></div><p id="public-expense-search-status" class="public-search-status" aria-live="polite"></p></div><div class="public-expense-list">${renderExpenseCategories(expenses)}</div><p id="public-expense-no-results" class="public-empty-note" hidden>No expenses match your search.</p>` : '<p class="public-empty-note">No expenses have been recorded for this year.</p>'}
                     </section>
 
                     <section class="public-contributor-section">
@@ -98,8 +143,10 @@ export async function renderPublicPortal(container, year = null) {
                     ${timetables.length ? `<section class="public-timetables-section"><div class="section-heading"><h2>${icon('calendar')} Event schedule</h2></div><div class="public-timetables-grid">${timetables.map(timetable => `<div class="public-tt-card" data-url="${escapeHtml(timetable.image_url)}" data-title="${escapeHtml(timetable.title)}"><div class="public-tt-img-wrap"><img src="${escapeHtml(timetable.image_url)}" alt="${escapeHtml(timetable.title)}" loading="lazy"></div><div class="public-tt-info"><h4>${escapeHtml(timetable.title)}</h4><span class="text-muted text-xs">${icon('calendar', 'ui-icon-sm')} ${formatDate(timetable.event_date)}</span></div></div>`).join('')}</div></section>` : ''}
 
                     <section class="public-list-section">
-                        <div class="section-heading"><div><p class="public-eyebrow">Contributions</p><h2>${icon('building')} Verified contributors</h2></div><input type="text" id="public-search-filter" class="search-input" placeholder="Filter by name or flat" aria-label="Filter by name or flat"></div>
+                        <div class="section-heading"><div><p class="public-eyebrow">Contributions</p><h2>${icon('building')} Verified contributors</h2></div><div class="public-search-field public-contributor-search">${icon('search', 'ui-icon-sm')}<input type="search" id="public-search-filter" placeholder="Search name, building or flat" aria-label="Search verified contributors" autocomplete="off"></div></div>
+                        <p id="public-contributor-search-status" class="public-search-status" aria-live="polite"></p>
                         <div class="flats-table-wrapper"><table class="flats-table"><thead><tr><th>Contributor</th><th>Unit / type</th><th>Amount</th><th class="hide-mobile">Payment mode</th><th class="hide-mobile">Date</th></tr></thead><tbody>${donorList.map(donor => `<tr class="donor-row" data-text="${escapeHtml(`${donor.name} ${donor.unit}`.toLowerCase())}"><td style="font-weight: 600; color: var(--slate-900);">${escapeHtml(donor.name)}</td><td><span class="badge badge-success" style="font-size: 0.7rem;">${escapeHtml(donor.unit)}</span></td><td class="amount-cell" style="color: var(--primary-700);">${formatCurrency(donor.amount)}</td><td class="hide-mobile text-muted">${escapeHtml(donor.paymentMode || '—')}</td><td class="hide-mobile text-muted">${formatDate(donor.date)}</td></tr>`).join('')}</tbody></table></div>
+                        <p id="public-contributor-no-results" class="public-empty-note" hidden>No contributors match your search.</p>
                     </section>
                 </main>
                 <footer class="public-footer"><p>Modak Expense Tracker · Managed by Garden Estate Society Committee</p></footer>
@@ -109,8 +156,12 @@ export async function renderPublicPortal(container, year = null) {
         pickerEvents = new AbortController();
         setupPublicAccessGate(residentList);
         setupDropdownEvents(donorList);
+        setupExpenseCategories();
         setupSearchFilter();
         setupImageModalHandlers();
+        document.getElementById('btn-theme-toggle-public')?.addEventListener('click', () => {
+            logPublicEvent('theme_changed', { theme: document.documentElement.dataset.theme || 'light' });
+        }, { signal: pickerEvents.signal });
     } catch (error) {
         console.error('Failed to load public portal:', error);
         container.innerHTML = `<div class="public-portal page-enter"><div class="empty-state"><div class="empty-icon">${icon('alert', 'ui-icon-xl')}</div><h2>Unable to load portal</h2><p class="text-muted">Please refresh and try again.</p></div></div>`;
@@ -121,13 +172,13 @@ function buildResidentList(donations, individuals) {
     const residents = [];
     donations.forEach(donation => {
         const name = (donation.owner_name || '').trim();
-        if (!name) return;
+        if (!name || isSummaryName(name)) return;
         const unit = [donation.buildings?.name, donation.flats?.flat_number].filter(Boolean).join(' · ');
         residents.push({ type: 'building', id: donation.id, name, unit, label: unit ? `${name} (${unit})` : name });
     });
     individuals.forEach(individual => {
         const name = (individual.name || '').trim();
-        if (!name) return;
+        if (!name || isSummaryName(name)) return;
         residents.push({ type: 'individual', id: individual.id, name, unit: 'Individual contributor', label: `${name} (Individual contributor)` });
     });
     return residents.sort((a, b) => a.name.localeCompare(b.name));
@@ -137,16 +188,20 @@ function buildDonorList(donations, individuals) {
     const donors = [];
     donations.forEach(donation => {
         const name = (donation.owner_name || '').trim();
-        if (!name) return;
+        if (!name || isSummaryName(name)) return;
         const unit = [donation.buildings?.name, donation.flats?.flat_number].filter(Boolean).join(' · ');
         donors.push({ name, unit, label: unit ? `${name} (${unit})` : name, amount: donation.amount, paymentMode: donation.transaction_type, date: donation.date_given });
     });
     individuals.forEach(individual => {
         const name = (individual.name || '').trim();
-        if (!name) return;
+        if (!name || isSummaryName(name)) return;
         donors.push({ name, unit: 'Individual contributor', label: `${name} (Individual contributor)`, amount: individual.amount, paymentMode: individual.transaction_type, date: individual.date_given });
     });
     return donors.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function isSummaryName(name) {
+    return /^(?:grand\s+)?(?:sub\s+)?total(?:\s+collection)?$/i.test(name);
 }
 
 function renderSearchablePicker(id, options, { placeholder, emptyMessage }) {
@@ -180,10 +235,13 @@ function setupPublicAccessGate(residentList) {
     if (!form || !select || !details) return;
 
     setupSearchablePicker('public-resident', residentList);
+    document.getElementById('public-access-consent')?.addEventListener('change', event => {
+        logPublicEvent('consent_changed', { accepted: event.target.checked });
+    }, { signal: pickerEvents.signal });
 
     form.addEventListener('submit', async event => {
         event.preventDefault();
-        const resident = residentList[Number(select.value)];
+        const resident = select.value === '' ? null : residentList[Number(select.value)];
         if (!resident) {
             error.textContent = 'Please search for and select your name to continue.';
             error.hidden = false;
@@ -193,7 +251,8 @@ function setupPublicAccessGate(residentList) {
         submitButton.disabled = true;
         error.hidden = true;
         try {
-            await recordPublicPortalAccess(resident);
+            publicAccessLogId = await recordPublicPortalAccess(resident);
+            logPublicEvent('dashboard_opened', { residentType: resident.type, residentId: resident.id });
             details.hidden = false;
             form.closest('.public-access-gate')?.classList.add('public-access-complete');
             details.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -218,6 +277,7 @@ function setupDropdownEvents(donorList) {
         document.getElementById('v-amount').textContent = formatCurrency(donor.amount);
         document.getElementById('v-mode').textContent = `${donor.paymentMode || '—'} · ${formatDate(donor.date)}`;
         box.style.display = 'block';
+        logPublicEvent('receipt_opened', { contributor: donor.label });
     });
 }
 
@@ -241,6 +301,7 @@ function setupSearchablePicker(id, options, onSelect = () => {}) {
         panel.hidden = false;
         toggle.setAttribute('aria-expanded', 'true');
         search.focus();
+        logPublicEvent(id === 'public-resident' ? 'resident_picker_open' : 'donor_picker_open');
     };
     const filter = () => {
         const query = search.value.trim().toLowerCase();
@@ -260,10 +321,21 @@ function setupSearchablePicker(id, options, onSelect = () => {}) {
         optionButtons.forEach(button => button.setAttribute('aria-selected', String(button.dataset.value === String(value))));
         close();
         onSelect(value);
+        if (id === 'public-resident') {
+            logPublicEvent('resident_selected', { residentType: selected.type, residentId: selected.id });
+            document.getElementById('public-access-error').hidden = true;
+        }
     };
 
     toggle.addEventListener('click', () => (panel.hidden ? open() : close()), { signal: pickerEvents.signal });
     search.addEventListener('input', filter, { signal: pickerEvents.signal });
+    let searchTimer;
+    search.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => logPublicEvent(id === 'public-resident' ? 'resident_picker_search' : 'donor_picker_search', {
+            query: search.value.trim(), results: optionButtons.filter(button => !button.hidden).length
+        }), 500);
+    }, { signal: pickerEvents.signal });
     search.addEventListener('keydown', event => {
         if (event.key === 'Escape') { close(); toggle.focus(); }
         if (event.key === 'ArrowDown') { event.preventDefault(); optionButtons.find(button => !button.hidden)?.focus(); }
@@ -277,14 +349,69 @@ function setupSearchablePicker(id, options, onSelect = () => {}) {
     document.addEventListener('click', event => { if (!root.contains(event.target)) close(); }, { signal: pickerEvents.signal });
 }
 
+function setupExpenseCategories() {
+    const search = document.getElementById('public-expense-search');
+    const categories = [...document.querySelectorAll('.public-expense-category')];
+    if (!search) return;
+    categories.forEach(category => {
+        const toggle = category.querySelector('.public-expense-category-toggle');
+        const panel = category.querySelector('.public-expense-category-panel');
+        toggle.addEventListener('click', () => {
+            const open = toggle.getAttribute('aria-expanded') !== 'true';
+            toggle.setAttribute('aria-expanded', String(open));
+            panel.hidden = !open;
+            logPublicEvent(open ? 'expense_category_opened' : 'expense_category_closed', { category: category.dataset.category });
+        }, { signal: pickerEvents.signal });
+    });
+
+    const status = document.getElementById('public-expense-search-status');
+    const noResults = document.getElementById('public-expense-no-results');
+    let searchTimer;
+    search.addEventListener('input', () => {
+        const query = search.value.trim().toLocaleLowerCase();
+        let matches = 0;
+        categories.forEach(category => {
+            const categoryMatch = (category.dataset.category || '').toLocaleLowerCase().includes(query);
+            const rows = [...category.querySelectorAll('.public-expense-row')];
+            let categoryMatches = 0;
+            rows.forEach(row => {
+                const match = categoryMatch || (row.dataset.search || '').toLocaleLowerCase().includes(query);
+                row.hidden = !match;
+                if (match) { categoryMatches++; matches++; }
+            });
+            category.hidden = categoryMatches === 0;
+            if (query && categoryMatches) {
+                category.querySelector('.public-expense-category-toggle').setAttribute('aria-expanded', 'true');
+                category.querySelector('.public-expense-category-panel').hidden = false;
+            }
+        });
+        status.textContent = query ? `${matches} matching ${matches === 1 ? 'expense' : 'expenses'}` : '';
+        noResults.hidden = !query || matches > 0;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => logPublicEvent('expense_search', { query: search.value.trim(), results: matches }), 500);
+    }, { signal: pickerEvents.signal });
+}
+
 function setupSearchFilter() {
     const input = document.getElementById('public-search-filter');
     const rows = document.querySelectorAll('.donor-row');
     if (!input) return;
+    const status = document.getElementById('public-contributor-search-status');
+    const noResults = document.getElementById('public-contributor-no-results');
+    let searchTimer;
     input.addEventListener('input', event => {
-        const query = event.target.value.trim().toLowerCase();
-        rows.forEach(row => { row.style.display = (row.dataset.text || '').includes(query) ? '' : 'none'; });
-    });
+        const query = event.target.value.trim().toLocaleLowerCase();
+        let matches = 0;
+        rows.forEach(row => {
+            const match = (row.dataset.text || '').toLocaleLowerCase().includes(query);
+            row.hidden = !match;
+            if (match) matches++;
+        });
+        status.textContent = query ? `${matches} matching ${matches === 1 ? 'contributor' : 'contributors'}` : '';
+        noResults.hidden = !query || matches > 0;
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => logPublicEvent('contributor_search', { query: input.value.trim(), results: matches }), 500);
+    }, { signal: pickerEvents.signal });
 }
 
 function setupImageModalHandlers() {
@@ -293,6 +420,7 @@ function setupImageModalHandlers() {
             const overlay = document.getElementById('image-modal-overlay');
             const image = document.getElementById('img-modal-src');
             if (!overlay || !image) return;
+            logPublicEvent('timetable_opened', { title: card.dataset.title || '' });
             image.src = card.dataset.url;
             document.getElementById('img-modal-title').textContent = card.dataset.title || '';
             overlay.classList.add('active');
